@@ -1,0 +1,41 @@
+{% if usage %}
+<section class="admin-usage" aria-label="Статистика использования модели">
+    <header class="admin-usage__head">
+        <h2>Статистика использования</h2>
+        <span class="admin-badge">usage</span>
+    </header>
+    <div class="admin-usage__grid">
+        <div class="usage-stat">
+            <span class="usage-stat__value">{{ usage.total_requests }}</span>
+            <span class="usage-stat__label">Запросов</span>
+        </div>
+        <div class="usage-stat">
+            <span class="usage-stat__value">{{ usage.total_errors }}</span>
+            <span class="usage-stat__label">Ошибок</span>
+        </div>
+        <div class="usage-stat">
+            <span class="usage-stat__value">{{ usage.total_tokens }}</span>
+            <span class="usage-stat__label">Токенов всего</span>
+        </div>
+        <div class="usage-stat">
+            <span class="usage-stat__value">{{ usage.total_prompt_tokens }}</span>
+            <span class="usage-stat__label">Промпт-токены</span>
+        </div>
+        <div class="usage-stat">
+            <span class="usage-stat__value">{{ usage.total_completion_tokens }}</span>
+            <span class="usage-stat__label">Комплит-токены</span>
+        </div>
+    </div>
+    <dl class="admin-usage__meta">
+        <div><dt>Последний запрос</dt><dd>{{ usage.last_request_at[:19] if usage.last_request_at else '—' }}</dd></div>
+        <div><dt>Последняя ошибка</dt><dd>{{ usage.last_error_at[:19] if usage.last_error_at else '—' }}</dd></div>
+        {% if usage.last_error_message %}
+        <div class="admin-usage__error"><dt>Текст ошибки</dt><dd>{{ usage.last_error_message }}</dd></div>
+        {% endif %}
+    </dl>
+    <p class="admin-usage__note">
+        Обновляется при перезагрузке страницы. Источник: <code>{{ usage_path }}</code>.
+        Диагностический «Тест провайдера» сюда не записывается.
+    </p>
+</section>
+{% endif %}

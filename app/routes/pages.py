@@ -14,6 +14,7 @@ from app.services.chat_service import ChatNotFoundError, ChatService
 from app.services.export_service import ExportService
 from app.services.file_service import FileService
 from app.services.report_service import ReportService
+from app.services.usage_service import UsageService
 
 
 settings = get_settings()
@@ -24,7 +25,8 @@ analysis_service = AnalysisService(file_service)
 chart_service = ChartService(file_service, settings)
 report_service = ReportService(file_service, settings)
 export_service = ExportService(settings)
-ai_service = AIService(settings)
+usage_service = UsageService(settings)
+ai_service = AIService(settings, usage_service=usage_service)
 chat_service = ChatService(
     file_service=file_service,
     analysis_service=analysis_service,

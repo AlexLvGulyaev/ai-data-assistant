@@ -13,12 +13,16 @@ logger = logging.getLogger(__name__)
 # Операторские параметры, редактируемые в runtime (через админку или прямым
 # изменением файла). Значения по умолчанию берутся из Settings (startup env).
 # Секреты (OPENAI_API_KEY) сюда НЕ входят — они остаются в .env.
+# Порядок = порядок вывода в админке (группы: промпт → провайдер/модель → лимиты).
 RUNTIME_KEYS: tuple[str, ...] = (
     "assistant_specialization",
+    "system_prompt_override",
     "provider_name",
     "openai_model",
     "openai_base_url",
     "structured_output",
+    "openai_temperature",
+    "openai_seed",
     "openai_max_history_messages",
     "max_file_size",
 )
@@ -50,6 +54,19 @@ class RuntimeConfig:
         if key in data:
             return data[key]
         return self._default(key)
+
+    def has(self, key: str) -> bool:
+        """True, если ключ явно задан в файле runtime-конфига (не fallback на .env).
+
+        Используется, чтобы отличить «оператор не задавал параметр» от «задал
+        значение, совпадающее с умолчанием» — важно для портабельности: некоторые
+        параметры (temperature) отправляются в запрос только при явной установке,
+        иначе провайдер использует своё умолчание (отдельные модели не принимают
+        произвольные значения).
+        """
+        if key not in RUNTIME_KEYS:
+            raise KeyError(f"Unknown runtime config key: {key}")
+        return key in self._read()
 
     def as_dict(self) -> dict[str, Any]:
         return {key: self.get(key) for key in RUNTIME_KEYS}
@@ -113,15 +130,19 @@ class RuntimeConfig:
 
     def _default(self, key: str) -> Any:
         s = self.settings
-        return {
+        defaults = {
             "assistant_specialization": s.assistant_specialization,
+            "system_prompt_override": None,
             "provider_name": s.provider_name,
             "openai_model": s.openai_model,
             "openai_base_url": s.openai_base_url,
             "structured_output": s.structured_output,
+            "openai_temperature": s.openai_temperature,
+            "openai_seed": s.openai_seed,
             "openai_max_history_messages": s.openai_max_history_messages,
             "max_file_size": s.max_file_size,
-        }[key]
+        }
+        return defaults[key]
 
     def _coerce(self, key: str, value: Any) -> Any:
         if key == "structured_output":
@@ -133,6 +154,29 @@ class RuntimeConfig:
                 return int(value)
             except (TypeError, ValueError):
                 return self._default(key)
+        if key == "openai_temperature":
+            text = str(value).strip() if value is not None else ""
+            if not text:
+                return self._default(key)
+            try:
+                return max(0.0, min(2.0, float(text)))
+            except ValueError:
+                raise ValueError(f"Температура должна быть числом 0–2, получено: {value!r}")
+        if key == "openai_seed":
+            if value is None:
+                return None
+            text = str(value).strip()
+            if not text:
+                return None
+            try:
+                return int(text)
+            except ValueError:
+                raise ValueError(f"Seed должен быть целым числом, получено: {value!r}")
+        if key == "system_prompt_override":
+            if value is None:
+                return None
+            text = str(value).strip()
+            return text or None
         if key == "provider_name":
             text = str(value).strip()
             return text or None

@@ -915,6 +915,103 @@ button,
     font-size: 1rem;
 }
 
+/* Textarea-инпут для override промпта */
+.admin-input--textarea {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    resize: vertical;
+    min-height: 140px;
+}
+
+/* Dashboard статистики использования */
+.admin-usage {
+    border: 1px solid rgba(28, 92, 120, 0.16);
+    border-radius: 18px;
+    padding: 1rem 1.2rem 1.1rem;
+    margin-bottom: 1.2rem;
+    background: rgba(28, 92, 120, 0.04);
+}
+
+.admin-usage__head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.8rem;
+}
+
+.admin-usage__head h2 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.admin-usage__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 0.6rem;
+    margin-bottom: 0.8rem;
+}
+
+.usage-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: white;
+    border-radius: 12px;
+    padding: 0.6rem 0.4rem;
+    border: 1px solid rgba(28, 92, 120, 0.1);
+}
+
+.usage-stat__value {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+}
+
+.usage-stat__label {
+    font-size: 0.74rem;
+    color: var(--muted, #6b7280);
+    margin-top: 0.15rem;
+}
+
+.admin-usage__meta {
+    display: grid;
+    gap: 0.25rem;
+    margin: 0 0 0.6rem;
+    font-size: 0.82rem;
+}
+
+.admin-usage__meta div {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.admin-usage__meta dt {
+    color: var(--muted, #6b7280);
+    min-width: 130px;
+}
+
+.admin-usage__meta dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.admin-usage__error dd {
+    color: #b43c3c;
+}
+
+.admin-usage__note {
+    font-size: 0.76rem;
+    color: var(--muted, #6b7280);
+    margin: 0;
+}
+
+/* Кнопка теста провайдера в футере админки */
+.admin-foot__actions {
+    margin-bottom: 0.8rem;
+}
+
 .admin-foot {
     margin-top: 2rem;
     padding-top: 1.2rem;

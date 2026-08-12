@@ -10,7 +10,9 @@ from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException
 
 from app.core.config import get_settings
+from app.services.ai_service import AIService
 from app.services.runtime_config import RUNTIME_KEYS, RuntimeConfig
+from app.services.usage_service import UsageService
 
 
 logger = logging.getLogger(__name__)
@@ -22,6 +24,11 @@ templates = Jinja2Templates(directory=str(settings.templates_dir))
 # file_service) держат свои экземпляры, но все читают один и тот же JSON-файл
 # через mtime-кеш — запись здесь видна им на следующем запросе без рестарта.
 runtime = RuntimeConfig(settings)
+# ai_service для диагностического теста провайдера и usage_service для dashboard
+# статистики — каждый читает/пишет свои файлы в storage/ (общие с экземплярами
+# в pages.py через mtime-кеш).
+ai_service = AIService(settings)
+usage_service = UsageService(settings)
 
 security = HTTPBasic(auto_error=False)
 
@@ -35,6 +42,12 @@ PARAM_META: dict[str, dict[str, Any]] = {
         "label": "Специализация ассистента",
         "hint": "Роль/профиль ассистента в системном промпте. Применяется на следующем запросе.",
         "kind": "text",
+    },
+    "system_prompt_override": {
+        "label": "Системный промпт (override)",
+        "hint": "Переопределяет файл prompts/v1/system.md. Доступны переменные {{specialization}} и {{provider_attribution}}. Применяется на следующем запросе. Сброс — снова используется файл.",
+        "kind": "textarea",
+        "placeholder": "(пусто = используется файл prompts/v1/system.md)",
     },
     "provider_name": {
         "label": "Имя провайдера (для промпта)",
@@ -56,6 +69,17 @@ PARAM_META: dict[str, dict[str, Any]] = {
         "label": "Structured output (json_schema)",
         "hint": "Вкл — строгий контракт ответа (для поддерживающих провайдеров). Выкл — свободный ответ с устойчивым парсером.",
         "kind": "bool",
+    },
+    "openai_temperature": {
+        "label": "Температура модели",
+        "hint": "Креативность 0–2. 0 — детерминированнее. Отправляется в каждом запросе.",
+        "kind": "float",
+    },
+    "openai_seed": {
+        "label": "Seed модели",
+        "hint": "Целое для воспроизводимости. Поддерживают не все провайдеры. Пусто — не отправляется.",
+        "kind": "int",
+        "placeholder": "(пусто = не задавать)",
     },
     "openai_max_history_messages": {
         "label": "Сообщений истории в запросе",
@@ -115,7 +139,10 @@ def _display_value(value: Any) -> str:
         return "— (по умолчанию / нейтрально)"
     if isinstance(value, bool):
         return "Вкл" if value else "Выкл"
-    return str(value)
+    text = str(value)
+    if len(text) > 80:
+        return f"{text[:77]}…"
+    return text
 
 
 @router.get("", response_class=HTMLResponse)
@@ -126,6 +153,8 @@ async def admin_panel(request: Request, _: None = Depends(_require_admin)):
         "page_title": "Админка оператора | Data Assistant",
         "params": _ordered_params(),
         "runtime_config_path": str(runtime.path),
+        "usage": usage_service.as_dict(),
+        "usage_path": str(usage_service.path),
         "admin_enabled": True,
         "status_message": None,
         "status_kind": None,
@@ -133,6 +162,34 @@ async def admin_panel(request: Request, _: None = Depends(_require_admin)):
     if request.headers.get("HX-Request") == "true":
         return templates.TemplateResponse("partials/admin_content.html", context)
     return templates.TemplateResponse("admin.html", context)
+
+
+@router.post("/test", response_class=HTMLResponse)
+async def admin_test_provider(request: Request, _: None = Depends(_require_admin)):
+    """Диагностический тест провайдера: пинг текущего base_url+model.
+    Не пишет в статистику использования (см. AIService.test_connection)."""
+    result = ai_service.test_connection()
+    if result.get("ok"):
+        message = (
+            f"✓ Провайдер отвечает. Модель «{result.get('model')}» "
+            f"({result.get('base_url')}), латентность {result.get('latency_ms')} мс. "
+            f"Ответ: «{result.get('reply')}»."
+        )
+        status_kind = "ok"
+    else:
+        message = (
+            f"✕ Провайдер недоступен. Модель «{result.get('model')}» "
+            f"({result.get('base_url')}): {result.get('error')}"
+        )
+        status_kind = "error"
+    return templates.TemplateResponse(
+        "partials/admin_status.html",
+        {
+            "request": request,
+            "status_message": message,
+            "status_kind": status_kind,
+        },
+    )
 
 
 @router.post("/update", response_class=HTMLResponse)

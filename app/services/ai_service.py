@@ -11,6 +11,7 @@ from app.services.file_service import StoredFile
 from app.services.prompt_loader import PromptLoader
 from app.services.registries import ACTION_TYPES, ACTION_TYPES_SET, CHART_TYPES, CHART_TYPES_SET
 from app.services.runtime_config import RuntimeConfig
+from app.services.usage_service import UsageService
 
 try:
     from openai import OpenAI
@@ -53,11 +54,18 @@ class AIService:
     ответ парсится устойчивым парсером.
     """
 
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        usage_service: UsageService | None = None,
+    ) -> None:
         self.settings = settings or get_settings()
         self._client = None
-        self._prompt_loader = PromptLoader(self.settings)
         self._runtime = RuntimeConfig(self.settings)
+        # PromptLoader делится тем же экземпляром RuntimeConfig — override промпта
+        # (system_prompt_override) читается из одного config.json.
+        self._prompt_loader = PromptLoader(self.settings, runtime=self._runtime)
+        self._usage = usage_service
         self._client_base_url: str | None = None
 
     @property
@@ -96,6 +104,15 @@ class AIService:
             "model": self._runtime.get("openai_model"),
             "messages": messages,
         }
+        # temperature отправляем только если оператор явно задал её в runtime-конфиге.
+        # Иначе провайдер использует своё умолчание — это портабельно: ряд моделей
+        # (gpt-5-mini и др.) не принимают произвольные значения температуры.
+        if self._runtime.has("openai_temperature"):
+            request_kwargs["temperature"] = self._runtime.get("openai_temperature")
+        # seed отправляем только если явно задан (не None) — поддерживают не все провайдеры.
+        seed = self._runtime.get("openai_seed")
+        if seed is not None:
+            request_kwargs["seed"] = seed
         if self._runtime.get("structured_output"):
             request_kwargs["response_format"] = {
                 "type": "json_schema",
@@ -106,7 +123,22 @@ class AIService:
             response = client.chat.completions.create(**request_kwargs)
         except Exception as exc:  # pragma: no cover - depends on external API/network
             logger.exception("Model request failed")
+            if self._usage is not None:
+                self._usage.record_error(str(exc))
             raise AIServiceRequestError(str(exc)) from exc
+
+        # Учёт использования (токены/запросы). response.usage может быть None
+        # для провайдеров, не возвращающих usage — тогда считаем только запрос.
+        if self._usage is not None:
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                self._usage.record_success(
+                    getattr(usage, "prompt_tokens", 0) or 0,
+                    getattr(usage, "completion_tokens", 0) or 0,
+                    getattr(usage, "total_tokens", 0) or 0,
+                )
+            else:
+                self._usage.record_request_only()
 
         raw_text = getattr(response.choices[0].message, "content", "") or ""
         plan = self._parse_plan(raw_text)
@@ -128,6 +160,43 @@ class AIService:
             )
             self._client_base_url = base_url
         return self._client
+
+    def test_connection(self) -> dict[str, Any]:
+        """Диагностический пинг провайдера: минимальный Chat Completions-запрос
+        к текущему (runtime) base_url+model. НЕ пишет в статистику использования.
+
+        Возвращает {ok, model, base_url, latency_ms, reply} или {ok: False, error}.
+        """
+        if OpenAI is None:
+            return {"ok": False, "error": "Пакет `openai` не установлен."}
+        if not self.settings.openai_api_key:
+            return {"ok": False, "error": "Не задан OPENAI_API_KEY в .env."}
+        import time
+
+        model = self._runtime.get("openai_model")
+        base_url = self._runtime.get("openai_base_url")
+        try:
+            client = self._get_client()
+            started = time.perf_counter()
+            # Минимальный пинг: только model+messages. Без max_tokens и temperature —
+            # портабельно (gpt-5-mini не принимает max_tokens и не поддерживает
+            # произвольную temperature). Ответ на «ping» короткий, стоимость пренебрежима.
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": "ping"}],
+            )
+            latency_ms = int((time.perf_counter() - started) * 1000)
+            reply = (getattr(response.choices[0].message, "content", "") or "").strip()
+            return {
+                "ok": True,
+                "model": model,
+                "base_url": base_url,
+                "latency_ms": latency_ms,
+                "reply": reply,
+            }
+        except Exception as exc:  # noqa: BLE001 - диагностический перехват
+            logger.warning("Provider test failed: %s", exc)
+            return {"ok": False, "error": str(exc), "model": model, "base_url": base_url}
 
     # --- Сборка запроса ---
 

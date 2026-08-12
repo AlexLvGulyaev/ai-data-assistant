@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     openai_model: str = Field(default="gpt-5-mini", alias="OPENAI_MODEL")
     openai_base_url: str = Field(default="https://api.openai.com/v1", alias="OPENAI_BASE_URL")
     openai_max_history_messages: int = Field(default=8, alias="OPENAI_MAX_HISTORY_MESSAGES")
+    # Температура и seed модели. Температура — креативность (0 = детерминированнее),
+    # seed — воспроизводимость (поддерживают не все провайдеры; None = не отправлять).
+    openai_temperature: float = Field(default=0.0, alias="OPENAI_TEMPERATURE")
+    openai_seed: int | None = Field(default=None, alias="OPENAI_SEED")
     # Отображаемое имя провайдера для промпта/greeting. None = нейтрально
     # (без упоминания провайдера в контенте), что корректно для любого провайдера.
     provider_name: str | None = Field(default=None, alias="PROVIDER_NAME")

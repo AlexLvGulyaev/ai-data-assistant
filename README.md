@@ -66,6 +66,8 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 | `OPENAI_API_KEY` | Ключ API провайдера | `.env` (рестарт) |
 | `OPENAI_BASE_URL` | Endpoint провайдера | `.env` (умолчание) **или `/admin` (runtime)** |
 | `OPENAI_MODEL` | Модель | `.env` (умолчание) **или `/admin` (runtime)** |
+| `OPENAI_TEMPERATURE` | Температура модели (0–2) | `.env` (умолчание) **или `/admin` (runtime)** |
+| `OPENAI_SEED` | Seed для воспроизводимости | `.env` (умолчание) **или `/admin` (runtime)** |
 | `ASSISTANT_SPECIALIZATION` | Специализация в промпте | `.env` (умолчание) **или `/admin` (runtime)** |
 | `STRUCTURED_OUTPUT` | Строгий контракт ответа | `.env` (умолчание) **или `/admin` (runtime)** |
 | `MAX_FILE_SIZE` | Лимит размера файла | `.env` (умолчание) **или `/admin` (runtime)** |

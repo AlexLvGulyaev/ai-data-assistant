@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import Settings, get_settings
+from app.services.runtime_config import RuntimeConfig
 
 logger = logging.getLogger(__name__)
 
@@ -20,14 +21,23 @@ class PromptLoader:
     программиста). Используется вместе с runtime-config provider'ом для
     подстановки операторских параметров в шаблон.
 
+    Если в runtime-config задан `system_prompt_override` (через админку), он
+    используется как шаблон вместо файла — оператор меняет промпт без правки
+    файлов образа. Override проходит через ту же интерполяцию переменных.
+
     Переменные шаблона `system.md`:
         {{specialization}}         — роль/специализация ассистента.
         {{provider_attribution}}   — атрибуция провайдера вида " от OpenAI"
                                      либо пустая строка (нейтральный промпт).
     """
 
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings | None = None,
+        runtime: RuntimeConfig | None = None,
+    ) -> None:
         self.settings = settings or get_settings()
+        self._runtime = runtime
         self._text_cache: dict[Path, tuple[float, str]] = {}
 
     def load_system_prompt(
@@ -35,8 +45,17 @@ class PromptLoader:
         version: str = DEFAULT_VERSION,
         variables: dict[str, str] | None = None,
     ) -> str:
-        path = self.settings.prompts_dir / version / "system.md"
-        template = self._read_cached(path).strip()
+        override = None
+        if self._runtime is not None:
+            try:
+                override = self._runtime.get("system_prompt_override")
+            except KeyError:
+                override = None
+        if override:
+            template = str(override).strip()
+        else:
+            path = self.settings.prompts_dir / version / "system.md"
+            template = self._read_cached(path).strip()
         return self._interpolate(template, variables or {})
 
     def load_response_schema(self, version: str = DEFAULT_VERSION) -> dict[str, Any]:
