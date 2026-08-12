@@ -226,10 +226,17 @@
                     <input type="hidden" name="message_text" value="Проанализируй текущий файл">
                     <button class="secondary-btn wide-btn" type="submit" {% if not active_preview %}disabled{% endif %}>Сделать анализ</button>
                 </form>
-                <form hx-post="/chat/{{ conversation.conversation_id }}/message" hx-target="#page-shell" hx-swap="outerHTML">
-                    <input type="hidden" name="message_text" value="Построй histogram для активного файла">
-                    <button class="ghost-btn wide-btn" type="submit" {% if not active_preview %}disabled{% endif %}>Построить график</button>
-                </form>
+                <div class="chart-picker">
+                    <button class="ghost-btn wide-btn chart-picker__toggle" type="button" aria-expanded="false" aria-controls="chart-chips-{{ conversation.conversation_id }}" {% if not active_preview %}disabled{% endif %}>Построить график</button>
+                    <div class="chart-picker__chips" id="chart-chips-{{ conversation.conversation_id }}" hidden>
+                        {% for ct in chart_types %}
+                            <form hx-post="/chat/{{ conversation.conversation_id }}/message" hx-target="#page-shell" hx-swap="outerHTML">
+                                <input type="hidden" name="message_text" value="{{ ct.prompt }}">
+                                <button class="chip-btn" type="submit" {% if not active_preview %}disabled{% endif %} title="{{ ct.prompt }}">{{ ct.label }}</button>
+                            </form>
+                        {% endfor %}
+                    </div>
+                </div>
                 <form hx-post="/chat/{{ conversation.conversation_id }}/message" hx-target="#page-shell" hx-swap="outerHTML">
                     <input type="hidden" name="message_text" value="Сформируй отчёт по активному файлу">
                     <button class="ghost-btn wide-btn" type="submit" {% if not active_preview %}disabled{% endif %}>Создать DOCX</button>

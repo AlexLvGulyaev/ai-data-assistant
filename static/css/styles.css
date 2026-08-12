@@ -487,6 +487,53 @@ button,
     transform: none;
 }
 
+/* Quick-grid chart picker: тоггл + ряд чипов типа графика.
+   Чипы — компактные пилюли, не занимают полную ширину. */
+.chart-picker {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.chart-picker__toggle::after {
+    content: "▾";
+    margin-left: 0.4rem;
+    font-size: 0.7em;
+    transition: transform 0.15s ease;
+}
+
+.chart-picker__toggle.is-open::after {
+    transform: rotate(180deg);
+}
+
+.chart-picker__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.chip-btn {
+    appearance: none;
+    border: 1px solid rgba(28, 92, 120, 0.25);
+    background: rgba(28, 92, 120, 0.06);
+    color: var(--ink);
+    cursor: pointer;
+    border-radius: 999px;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.chip-btn:hover:not(:disabled) {
+    background: rgba(28, 92, 120, 0.14);
+    transform: translateY(-1px);
+}
+
+.chip-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
 .side-rail {
     display: grid;
     gap: 0.7rem;

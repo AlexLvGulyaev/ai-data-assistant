@@ -64,8 +64,14 @@ class ChartService:
         dataframe = self.file_service.read_dataframe(stored_file)
         columns = self.file_service.describe_columns(dataframe)
         numeric_columns = [item["name"] for item in columns if item["kind"] == "numeric"]
-        dimension_columns = [item["name"] for item in columns if item["kind"] in {"categorical", "datetime"}]
+        categorical_columns = [item["name"] for item in columns if item["kind"] == "categorical"]
+        datetime_columns = [item["name"] for item in columns if item["kind"] == "datetime"]
+        dimension_columns = categorical_columns + datetime_columns
 
+        # Осмысленные дефолты осей по типу графика, когда колонки не заданы явно:
+        # pie/bar — по категориальной (не по дате, иначе доля/сравнение по дате бессмысленны);
+        # line — по дате (динамика во времени), иначе по первой размерности.
+        # Полные fallback-цепочки гарантируют выбор колонки при любом составе данных.
         selected_x = x_column or (dimension_columns or list(dataframe.columns))[0]
         selected_y = y_column or (numeric_columns or list(dataframe.columns))[0]
         file_name = self._build_output_name(stored_file.file_id, chart_type, "png")
@@ -91,23 +97,24 @@ class ChartService:
         elif chart_type == "line":
             if not numeric_columns:
                 raise FileReadError("Для line нужен хотя бы один числовой столбец.")
-            plot_frame = dataframe[[selected_x, selected_y]].copy()
+            line_x = x_column or (datetime_columns or dimension_columns or list(dataframe.columns))[0]
+            plot_frame = dataframe[[line_x, selected_y]].copy()
             plot_frame[selected_y] = pd.to_numeric(plot_frame[selected_y], errors="coerce")
             plot_frame = plot_frame.dropna(subset=[selected_y]).head(50)
             if plot_frame.empty:
                 raise FileReadError("Недостаточно данных для line графика.")
             axis.plot(
-                plot_frame[selected_x].astype(str),
+                plot_frame[line_x].astype(str),
                 plot_frame[selected_y],
                 color="#114b5f",
                 linewidth=2.5,
                 marker="o",
             )
-            axis.set_title(f"Line chart: {selected_y} by {selected_x}")
-            axis.set_xlabel(selected_x)
+            axis.set_title(f"Line chart: {selected_y} by {line_x}")
+            axis.set_xlabel(line_x)
             axis.set_ylabel(selected_y)
             axis.tick_params(axis="x", rotation=35)
-            description = f"Линейная динамика «{selected_y}» по оси «{selected_x}»."
+            description = f"Линейная динамика «{selected_y}» по оси «{line_x}»."
         elif chart_type == "pie":
             pie_palette = [
                 "#d06b4e", "#114b5f", "#6c8b6b", "#8d3f28", "#c9a86a",

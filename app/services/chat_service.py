@@ -16,7 +16,12 @@ from app.services.analysis_service import AnalysisService
 from app.services.chart_service import ChartService
 from app.services.export_service import ExportService
 from app.services.file_service import FileService, FileServiceError, StoredFile
-from app.services.registries import CHART_TYPES, CHART_TYPE_HINTS
+from app.services.registries import (
+    CHART_TYPES,
+    CHART_TYPE_HINTS,
+    CHART_TYPE_LABELS_RU,
+    CHART_TYPE_QUICK_PROMPTS,
+)
 from app.services.report_service import ReportService
 
 
@@ -193,6 +198,16 @@ class ChatService:
                 active_preview = None
 
         files = [{**item, "is_active": item["file_id"] == active_file_id} for item in reversed(conversation.get("files", []))]
+        # Реестро-управляемый список типов графиков для UI-чипов (quick-grid picker).
+        # Единый источник истины — CHART_TYPES; лейблы и промпты тянутся из реестра.
+        chart_types = [
+            {
+                "type": chart_type,
+                "label": CHART_TYPE_LABELS_RU.get(chart_type, chart_type),
+                "prompt": CHART_TYPE_QUICK_PROMPTS.get(chart_type, f"Построй {chart_type} для активного файла"),
+            }
+            for chart_type in CHART_TYPES
+        ]
         return {
             "request": request,
             "page_title": "AI Data Chat",
@@ -200,6 +215,7 @@ class ChatService:
             "messages": conversation.get("messages", []),
             "active_preview": active_preview,
             "files": files,
+            "chart_types": chart_types,
             "saved_artifacts": self._collect_saved_artifacts(conversation),
             "ai_enabled": self.ai_service.enabled,
             "ai_model": self.ai_service.model_name,

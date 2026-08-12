@@ -42,6 +42,21 @@ const setupComposer = () => {
     if (thread) {
         thread.scrollTop = thread.scrollHeight;
     }
+
+    // Quick-grid chart picker: «Построить график» раскрывает ряд чипов типа графика.
+    // Чипы — отдельные HTMX-формы; тоггл чисто визуальный (show/hide ряда).
+    document.querySelectorAll(".chart-picker__toggle").forEach((toggle) => {
+        if (toggle.dataset.bound === "1") return;
+        toggle.dataset.bound = "1";
+        toggle.addEventListener("click", () => {
+            const chips = toggle.parentElement.querySelector(".chart-picker__chips");
+            if (!chips) return;
+            const willOpen = chips.hidden;
+            chips.hidden = !willOpen;
+            toggle.classList.toggle("is-open", willOpen);
+            toggle.setAttribute("aria-expanded", String(willOpen));
+        });
+    });
 };
 
 /* ── Индикация длительных запросов ──────────────────────────────────────
