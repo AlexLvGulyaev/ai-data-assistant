@@ -129,9 +129,13 @@ SDK) и в лабе не верифицирован. Пресет «провай
 
 - **OpenAI** — end-to-end верифицирован реальным запросом к `gpt-5-mini`
   (structured_output, план с pie-графиком), `test_connection` OK.
-- **GigaChat** — код-путь верифицирован: без `GIGACHAT_AUTH_KEY` `enabled=False`
-  и `test_connection`/`plan_response` дают честную конфиг-ошибку (не падение).
-  End-to-end с реальным ключом Сбер — при наличии `GIGACHAT_AUTH_KEY`.
+- **GigaChat** — end-to-end верифицирован реальным `GIGACHAT_AUTH_KEY`
+  (authorization key Сбер, переиспользован из `.env` кейса AI Curator):
+  `enabled=True`, `test_connection` OK (OAuth-обмен + ping, латентность ~550 мс,
+  ответ «pong»), `plan_response` к `GigaChat-Max` вернул план с pie-графиком
+  (free-text парсер, structured_output выключен). Без ключа — честная
+  конфиг-ошибка, не падение. TLS: `ssl.CERT_NONE` (dev/демо); для prod —
+  `GIGACHAT_CA_BUNDLE`.
 - **YandexGPT** — код-путь верифицирован: подстановка `<folder_id>` в URI,
   `default_headers` (`x-folder-id`, `x-data-logging-enabled: false`) формируются,
   routing на `llm.api.cloud.yandex.net` подтверждён ответом Yandex (401 на

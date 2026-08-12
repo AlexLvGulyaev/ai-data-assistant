@@ -159,10 +159,13 @@ functional Validation в существенном объёме; полная cle
 | C11 | Yandex folder_id подстановка | `provider=yandex`, `yandex_folder_id=b1g...` | `_effective_model` подставляет folder_id; `default_headers` с `x-folder-id` | `effective_model=gpt://b1g.../yandexgpt/latest`; client signature `(yandex_url, yandex, folder)`; `default_headers={x-folder-id, x-data-logging-enabled:false}` | PASS |
 | C12 | Yandex routing | `test_connection()` при `provider=yandex` | запрос уходит на Yandex endpoint | routing на `llm.api.cloud.yandex.net` подтверждён ответом Yandex (401 на OpenAI-ключе — ожидаемо, нужен API-ключ Yandex) | PASS |
 | C13 | Секреты вне config.json | `config.json` не содержит `api_key`/`auth_key`/`admin_token` | только операторские ключи | секреты отсутствуют (только в `.env`) | PASS |
+| C14 | GigaChat end-to-end (real key) | `GIGACHAT_AUTH_KEY` задан (переиспользован из `.env` кейса AI Curator); `test_connection()` + `plan_response()` при `provider=gigachat` | OAuth-обмен + пинг OK; план с действием | `enabled=True`; `test_connection`: `ok=True, latency_ms≈550, reply=pong`; `plan_response` к `GigaChat-Max`: `actions=[{generate_chart, pie, category, revenue}]` (free-text parse) | PASS |
 
-**Итог приложения C:** 13/13 PASS. Multi-provider admin воспроизведён пересборкой
-из артефактов репозитория: пресеты применяются, OpenAI работает end-to-end
-(регрессия температуры не вернулась), GigaChat честно требует секрет, Yandex
-корректно подставляет folder_id и заголовки. End-to-end для GigaChat/Yandex с
-реальными ключами провайдеров — при их наличии (код-пути верифицированы).
+**Итог приложения C:** 14/14 PASS. Multi-provider admin воспроизведён пересборкой
+из артефактов репозитория: пресеты применяются, OpenAI и GigaChat работают
+end-to-end реальными запросами (регрессия температуры не вернулась; GigaChat —
+OAuth-адаптер, free-text parse), Yandex корректно подставляет folder_id и
+заголовки (routing подтверждён; end-to-end требует API-ключ Yandex). Секрет
+`GIGACHAT_AUTH_KEY` переиспользован из соседнего кейса лаборатории (AI Curator) и
+остаётся только в локальном `.env` (gitignored, в репозиторий не попадает).
 Строго clean-env перевалидация (новый VPS) — за оператором.
