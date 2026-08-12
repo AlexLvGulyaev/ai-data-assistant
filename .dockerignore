@@ -1,0 +1,43 @@
+# --- Секреты (категорически не должны попадать в образ) ---
+.env
+.env.*
+!.env.example
+
+# --- VCS и IDE ---
+.git/
+.gitignore
+.github/
+.idea/
+.vscode/
+
+# --- Python артефакты ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# --- Runtime-хранилище (монтируется как volume, не в образе) ---
+storage/uploads/*
+storage/outputs/*
+storage/charts/*
+storage/config.json
+
+# --- Внутренние артефакты APL (не часть публичного образа) ---
+attachments/
+task_history/
+docs/
+reports/
+.venv/
+
+# --- Прочее ---
+*.md
+!README.md
+Dockerfile
+docker-compose*.yml
+.claude/

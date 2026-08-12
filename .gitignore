@@ -1,0 +1,53 @@
+# --- Секреты ---
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+*.egg-info/
+
+# --- Виртуальные окружения ---
+.venv/
+venv/
+env/
+
+# --- IDE / редакторы ---
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- Логи ---
+*.log
+
+# --- Runtime-хранилище (загрузки, графики, отчёты, runtime-config) ---
+/storage/
+storage/
+storage/uploads/
+storage/outputs/
+storage/charts/
+storage/chats/
+storage/config.json
+
+# --- OS-файлы ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Внутренние артефакты лаборатории (правило публичной/внутренней границы APL):
+# не публикуются в публичный репозиторий. ---
+attachments/
+task_history/
+PROJECT_GOAL.md
+MEMORY.md
+.claude/

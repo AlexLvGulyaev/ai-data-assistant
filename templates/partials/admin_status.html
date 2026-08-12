@@ -1,0 +1,25 @@
+<div class="admin-status admin-status--{{ status_kind }}">
+    <span class="admin-status__icon">{{ '✓' if status_kind == 'ok' else '✕' }}</span>
+    <span>{{ status_message }}</span>
+</div>
+{% if updated_key %}
+<script>
+    // Обновляем отображение текущего значения карточки без перезагрузки страницы.
+    (function () {
+        var el = document.getElementById('current-{{ updated_key }}');
+        if (el) {
+            el.innerHTML = 'Текущее значение: <strong>{{ updated_display }}</strong>';
+        }
+        // Для сброса — очищаем поле ввода к умолчанию.
+        {% if reset_key %}
+        var card = document.getElementById('card-{{ reset_key }}');
+        if (card) {
+            var input = card.querySelector('.admin-input');
+            if (input && input.type !== 'select-one') {
+                // оставляем как есть; отображение уже обновлено выше
+            }
+        }
+        {% endif %}
+    })();
+</script>
+{% endif %}

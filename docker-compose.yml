@@ -1,0 +1,43 @@
+# ============================================================
+# AI Data Assistant — production-режим (сборка образа).
+#
+# Запуск (production):
+#   docker compose -f docker-compose.yml up -d --build
+#
+# Для dev/operator-режима (монтирование исходников + live reload,
+# без пересборки при правках кода) используется docker-compose.override.yml,
+# который применяется автоматически при `docker compose up` (без -f).
+# См. DEPLOYMENT_GUIDE.md.
+# ============================================================
+
+services:
+  web:
+    build: .
+    container_name: data-assistant
+    env_file:
+      - .env
+    # Хост-порт НЕ публикуется: наружу сервис выставляется через Traefik
+    # (общий реверс-прокси лаборатории, file-provider /opt/n8n/dynamic.yml),
+    # который достаёт контейнер по имени `data-assistant` на сети `n8n_default`.
+    # Для локального доступа без Traefik используйте dev-режим
+    # (docker-compose.override.yml публикует порт на хост).
+    expose:
+      - "8000"
+    volumes:
+      # Runtime-хранилище (загрузки, графики, отчёты, runtime-config.json)
+      # живёт на хосте — переживает пересборку/рестарт контейнера.
+      - ./storage:/app/storage
+    restart: unless-stopped
+    networks:
+      - default
+      - n8n_default
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  n8n_default:
+    external: true

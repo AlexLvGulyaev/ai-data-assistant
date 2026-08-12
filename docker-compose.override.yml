@@ -1,0 +1,43 @@
+# ============================================================
+# AI Data Assistant — dev/operator-режим (override).
+#
+# Автоматически применяется при `docker compose up` (без явного -f).
+# Монтирует исходники, промпты, шаблоны и статику внутрь контейнера и
+# запускает uvicorn с --reload — правки кода/промптов/шаблонов.apply
+# в реальном времени БЕЗ пересборки образа.
+#
+# Запуск (dev/operator):
+#   docker compose up            # build нужен только первый раз
+#   docker compose up --build    # первый запуск или смена зависимостей
+#
+# Операторские параметры (специализация, модель, лимиты и т.п.) меняются
+# через /admin или прямым редактированием storage/config.json — без рестарта.
+# ============================================================
+
+services:
+  web:
+    # Не задаём build повторно — наследуем образ из docker-compose.yml.
+    # Пересборка нужна только при смене requirements.txt (зависимости).
+    container_name: data-assistant-dev
+    # Dev-режим публикует порт на хост для локального доступа без Traefik.
+    # Production (docker-compose.yml) хост-порт НЕ публикует — наружу смотрит Traefik.
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    volumes:
+      # Runtime-хранилище (включая storage/config.json — операторский runtime-config).
+      - ./storage:/app/storage
+      # Исходный код — live reload без пересборки.
+      - ./app:/app/app
+      # Версионированные промпты — правка применяется в runtime (mtime-кеш PromptLoader).
+      - ./prompts:/app/prompts
+      # Шаблоны и статика — правка видна сразу (Jinja auto-reload + static mount).
+      - ./templates:/app/templates
+      - ./static:/app/static
+    # Переопределяем команду: reload + привязка к порту из .env.
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-dir /app/app
+      --reload-dir /app/prompts

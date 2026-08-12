@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block shell %}
+<section class="admin-shell">
+    <header class="admin-head">
+        <div>
+            <h1>Админка оператора</h1>
+            <p class="admin-sub">
+                Операторские параметры применяются в runtime — на следующем запросе,
+                без пересборки и рестарта контейнера.
+            </p>
+        </div>
+        <span class="admin-badge">runtime-config</span>
+    </header>
+
+    {% include "partials/admin_content.html" %}
+</section>
+{% endblock %}
