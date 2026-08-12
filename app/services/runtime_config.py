@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 # (специализация → провайдер/модель → портабельность → лимиты).
 RUNTIME_KEYS: tuple[str, ...] = (
     "assistant_specialization",
+    "provider",
     "provider_name",
     "openai_model",
     "openai_base_url",
@@ -25,6 +26,7 @@ RUNTIME_KEYS: tuple[str, ...] = (
     "openai_seed",
     "openai_max_history_messages",
     "max_file_size",
+    "yandex_folder_id",
 )
 
 # Единый источник истины для операторских параметров — storage/config.json.
@@ -33,6 +35,7 @@ RUNTIME_KEYS: tuple[str, ...] = (
 # умолчаний, .env не дублирует операторские параметры.
 DEFAULTS: dict[str, Any] = {
     "assistant_specialization": "AI Data Assistant — аналитик данных общего профиля",
+    "provider": "openai",
     "provider_name": None,
     "openai_model": "gpt-5-mini",
     "openai_base_url": "https://api.openai.com/v1",
@@ -41,17 +44,19 @@ DEFAULTS: dict[str, Any] = {
     "openai_seed": None,
     "openai_max_history_messages": 8,
     "max_file_size": "10MB",
+    "yandex_folder_id": None,
 }
 
 # Ключи, которые всегда присутствуют в config.json после старта (always-active
 # параметры). ensure_initialized сеет именно их. Опциональные (opt-in) ключи —
-# provider_name, openai_temperature, openai_seed — НЕ сеются и остаются
-# отсутствующими, пока оператор их не задаст. Это нужно для портабельности:
-# has("openai_temperature") возвращает False, пока температура не задана явно,
-# и она НЕ отправляется в запрос — иначе провайдеры вроде gpt-5-mini,
-# принимающие только умолчательную температуру, отвергают запрос.
+# provider_name, openai_temperature, openai_seed, yandex_folder_id — НЕ сеются
+# и остаются отсутствующими, пока оператор их не задаст. Это нужно для
+# портабельности: has("openai_temperature") возвращает False, пока температура
+# не задана явно, и она НЕ отправляется в запрос — иначе провайдеры вроде
+# gpt-5-mini, принимающие только умолчательную температуру, отвергают запрос.
 SEEDED_KEYS: tuple[str, ...] = (
     "assistant_specialization",
+    "provider",
     "openai_model",
     "openai_base_url",
     "structured_output",
@@ -62,6 +67,7 @@ OPT_IN_KEYS: tuple[str, ...] = (
     "provider_name",
     "openai_temperature",
     "openai_seed",
+    "yandex_folder_id",
 )
 
 
@@ -156,8 +162,9 @@ class RuntimeConfig:
     def reset(self, key: str) -> Any:
         """Удалить ключ из config.json — параметр вернётся к умолчанию из DEFAULTS.
 
-        Для opt-in ключей (temperature/seed/provider_name) reset = «не задавать»:
-        has() снова False, параметр перестаёт отправляться в запрос.
+        Для opt-in ключей (temperature/seed/provider_name/yandex_folder_id)
+        reset = «не задавать»: has() снова False, параметр перестаёт
+        отправляться в запрос/заголовки.
         """
         if key not in RUNTIME_KEYS:
             raise KeyError(f"Unknown runtime config key: {key}")
@@ -229,6 +236,18 @@ class RuntimeConfig:
             except ValueError:
                 raise ValueError(f"Seed должен быть целым числом, получено: {value!r}")
         if key == "provider_name":
+            text = str(value).strip()
+            return text or None
+        if key == "provider":
+            text = str(value).strip()
+            if text not in ("openai", "gigachat", "yandex", "custom"):
+                raise ValueError(
+                    f"Провайдер должен быть одним из openai/gigachat/yandex/custom, получено: {value!r}"
+                )
+            return text
+        if key == "yandex_folder_id":
+            if value is None:
+                return None
             text = str(value).strip()
             return text or None
         return str(value).strip() if value is not None else None

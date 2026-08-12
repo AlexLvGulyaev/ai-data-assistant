@@ -127,3 +127,42 @@ functional Validation** в существенном объёме, но не ст
 редактируется через `/admin` и переживает пересборку через volume, секреты
 остаются только в `.env`. Строго clean-env перевалидация (новый VPS) — за
 оператором; до её проведения изменение считается верифицированным функционально.
+
+---
+
+## Приложение C. Перевалидация после multi-provider admin (2026-08-12)
+
+**Повод:** добавление реестра пресетов провайдеров (`PROVIDER_PRESETS`), новых
+runtime-ключей (`provider`, `yandex_folder_id`), секрета `GIGACHAT_AUTH_KEY`,
+GigaChat-адаптера (`app/services/gigachat_adapter.py`), мультипровайдерного
+роутинга в `AIService`, редизайна `/admin` (двухколоночная раскладка, секция
+«Провайдер» с пресетами, тултипы). По стандарту APL изменение конфигурации и
+зависимостей требует перевалидации.
+
+**Окружение:** пересборка образа из артефактов репозитория
+(`docker compose -f docker-compose.yml up -d --build`). Verification +
+functional Validation в существенном объёме; полная clean-env перевалидация
+(новый VPS) — за оператором.
+
+| # | Шаг | Команда / действие | Ожидание | Факт | Статус |
+|---|-----|--------------------|----------|------|--------|
+| C1 | Пересборка production | `docker compose -f docker-compose.yml up -d --build` | образ собран, контейнер Up | образ пересобран, `data-assistant` Up | PASS |
+| C2 | Health | `GET /health` | `{"status":"ok",...}` | `{"status":"ok","app":"Data Assistant"}` | PASS |
+| C3 | ensure_initialized: `provider` сеется | `config.json` после чистого старта | `provider="openai"`, opt-in (`yandex_folder_id`) отсутствует | `provider="openai"`; `yandex_folder_id`/`provider_name`/`openai_temperature`/`openai_seed` отсутствуют | PASS |
+| C4 | `/admin` рендер (новая раскладка) | `GET /admin` | двухколоночная раскладка, секция «Провайдер», чипы пресетов, тултипы, «Тест провайдера» в секции | `admin-layout`, `admin-tooltip`, `preset-chip`, `provider-section`, 4 пресета (OpenAI активен), `Тест провайдера` — все элементы присутствуют | PASS |
+| C5 | Применение пресета GigaChat | `POST /admin/provider preset=gigachat` | активный чип GigaChat + 4 поля обновлены | `provider=gigachat`, `base_url=https://gigachat.devices.sberbank.ru/api/v1`, `model=GigaChat-Max`, `structured_output=false`, `provider_name=GigaChat`; чип активен | PASS |
+| C6 | Возврат пресета OpenAI | `POST /admin/provider preset=openai` | активный чип OpenAI + поля восстановлены | `provider=openai`, `model=gpt-5-mini`, `structured_output=true` | PASS |
+| C7 | OpenAI end-to-end (real) | `AIService.plan_response(...)` к gpt-5-mini | успех, план с действием, без ошибки температуры | `assistant_message` получен, `actions=[{generate_chart, pie, category, revenue}]`; температура не отправлена (`has()=False`) | PASS |
+| C8 | OpenAI test_connection | `AIService.test_connection()` | `{ok: True, provider: openai, ...}` | `ok=True, provider=openai, model=gpt-5-mini, latency_ms=2224, reply=pong` | PASS |
+| C9 | GigaChat без ключа — enabled | `AIService.enabled` при `provider=gigachat`, `GIGACHAT_AUTH_KEY` не задан | `False` | `enabled=False` | PASS |
+| C10 | GigaChat без ключа — test/plan | `test_connection()`, `plan_response()` | честная конфиг-ошибка, не падение | `test_connection`: `ok=False, error="Выбран GigaChat, но не задан GIGACHAT_AUTH_KEY..."`; `plan_response` raises `AIServiceConfigurationError` | PASS |
+| C11 | Yandex folder_id подстановка | `provider=yandex`, `yandex_folder_id=b1g...` | `_effective_model` подставляет folder_id; `default_headers` с `x-folder-id` | `effective_model=gpt://b1g.../yandexgpt/latest`; client signature `(yandex_url, yandex, folder)`; `default_headers={x-folder-id, x-data-logging-enabled:false}` | PASS |
+| C12 | Yandex routing | `test_connection()` при `provider=yandex` | запрос уходит на Yandex endpoint | routing на `llm.api.cloud.yandex.net` подтверждён ответом Yandex (401 на OpenAI-ключе — ожидаемо, нужен API-ключ Yandex) | PASS |
+| C13 | Секреты вне config.json | `config.json` не содержит `api_key`/`auth_key`/`admin_token` | только операторские ключи | секреты отсутствуют (только в `.env`) | PASS |
+
+**Итог приложения C:** 13/13 PASS. Multi-provider admin воспроизведён пересборкой
+из артефактов репозитория: пресеты применяются, OpenAI работает end-to-end
+(регрессия температуры не вернулась), GigaChat честно требует секрет, Yandex
+корректно подставляет folder_id и заголовки. End-to-end для GigaChat/Yandex с
+реальными ключами провайдеров — при их наличии (код-пути верифицированы).
+Строго clean-env перевалидация (новый VPS) — за оператором.

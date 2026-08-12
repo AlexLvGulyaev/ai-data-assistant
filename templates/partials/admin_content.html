@@ -6,98 +6,50 @@
 
 {% include "partials/admin_usage.html" %}
 
-<section class="admin-card admin-card--prompt" id="card-prompt">
-    <header class="admin-card__head">
-        <h2>Системный промпт</h2>
-        <span class="admin-card__key">{{ prompt_path }}</span>
-    </header>
-    <p class="admin-card__hint">
-        Единый источник истины — файл <code>prompts/v1/system.md</code>. Правка
-        применяется на следующем запросе (mtime-кеш). Переменные:
-        <code>{{ "{{specialization}}" }}</code> — специализация (операторский параметр),
-        <code>{{ "{{provider_attribution}}" }}</code> — « от &lt;провайдер&gt;» либо пусто.
-    </p>
+<div class="admin-layout">
+    <main class="admin-layout__main">
+        <section class="admin-card admin-card--prompt" id="card-prompt">
+            <header class="admin-card__head">
+                <h2>Системный промпт</h2>
+                <span class="admin-card__key">{{ prompt_path }}</span>
+            </header>
+            <p class="admin-card__hint">
+                Единый источник истины — файл <code>prompts/v1/system.md</code>. Правка
+                применяется на следующем запросе (mtime-кеш). Переменные:
+                <code>{{ "{{specialization}}" }}</code> — специализация (операторский параметр),
+                <code>{{ "{{provider_attribution}}" }}</code> — « от &lt;провайдер&gt;» либо пусто.
+            </p>
 
-    <form class="admin-form"
-          hx-post="/admin/prompt"
-          hx-target="#admin-status"
-          hx-swap="innerHTML"
-          hx-disabled-elt="button[data-key='prompt']">
-        <textarea name="content" class="admin-input admin-input--textarea" rows="14"
-                  data-key="prompt">{{ prompt_text }}</textarea>
-        <div class="admin-form__actions">
-            <button type="submit" class="primary-btn" data-key="prompt">Сохранить промпт</button>
+            <form class="admin-form"
+                  hx-post="/admin/prompt"
+                  hx-target="#admin-status"
+                  hx-swap="innerHTML"
+                  hx-disabled-elt="button[data-key='prompt']">
+                <textarea name="content" class="admin-input admin-input--textarea" rows="22"
+                          data-key="prompt">{{ prompt_text }}</textarea>
+                <div class="admin-form__actions">
+                    <button type="submit" class="primary-btn" data-key="prompt">Сохранить промпт</button>
+                </div>
+            </form>
+        </section>
+    </main>
+
+    <aside class="admin-layout__side">
+        {% include "partials/admin_provider.html" %}
+
+        <div class="admin-grid">
+            {% for param in general_params %}
+            {% include "partials/admin_param_card.html" with context %}
+            {% endfor %}
         </div>
-    </form>
-</section>
 
-<div class="admin-grid">
-    {% for param in params %}
-    <article class="admin-card" id="card-{{ param.key }}">
-        <header class="admin-card__head">
-            <h2>{{ param.label }}</h2>
-            <span class="admin-card__key">{{ param.key }}</span>
-        </header>
-        <p class="admin-card__hint">{{ param.hint }}</p>
-
-        <div class="admin-card__current" id="current-{{ param.key }}">
-            Текущее значение: <strong>{{ param.display }}</strong>
-        </div>
-
-        <form class="admin-form"
-              hx-post="/admin/update"
-              hx-target="#admin-status"
-              hx-swap="innerHTML"
-              hx-disabled-elt="button[data-key='{{ param.key }}']">
-            <input type="hidden" name="key" value="{{ param.key }}">
-
-            {% if param.kind == "bool" %}
-            <select name="value" class="admin-input">
-                <option value="true" {% if param.value == true %}selected{% endif %}>Вкл</option>
-                <option value="false" {% if param.value == false %}selected{% endif %}>Выкл</option>
-            </select>
-            {% elif param.kind == "int" %}
-            <input type="number" name="value" class="admin-input"
-                   value="{{ param.value if param.value is not none else '' }}"
-                   min="0" step="1"
-                   placeholder="{{ param.placeholder or '' }}">
-            {% elif param.kind == "float" %}
-            <input type="number" name="value" class="admin-input"
-                   value="{{ '' if param.value is none else param.value }}"
-                   min="0" max="2" step="0.1">
-            {% elif param.kind == "textarea" %}
-            <textarea name="value" class="admin-input admin-input--textarea" rows="8"
-                      placeholder="{{ param.placeholder or '' }}">{{ '' if param.value is none else param.value }}</textarea>
-            {% else %}
-            <input type="text" name="value" class="admin-input"
-                   value="{{ '' if param.value is none else param.value }}"
-                   placeholder="{{ param.placeholder or '' }}">
-            {% endif %}
-
-            <div class="admin-form__actions">
-                <button type="submit" class="primary-btn" data-key="{{ param.key }}">Сохранить</button>
-                <button type="button" class="ghost-btn"
-                        hx-post="/admin/reset"
-                        hx-vals='{"key": "{{ param.key }}"}'
-                        hx-target="#admin-status"
-                        hx-swap="innerHTML">Сбросить</button>
-            </div>
-        </form>
-    </article>
-    {% endfor %}
+        <footer class="admin-foot">
+            <p>Источник runtime-конфига: <code>{{ runtime_config_path }}</code></p>
+            <p class="admin-foot__note">
+                Секреты (OPENAI_API_KEY, GIGACHAT_AUTH_KEY, ADMIN_TOKEN) и bootstrap
+                (хост/порт, пути) живут в <code>.env</code> и требуют рестарта.
+                Операторские параметры выше — нет.
+            </p>
+        </footer>
+    </aside>
 </div>
-
-<footer class="admin-foot">
-    <div class="admin-foot__actions">
-        <button class="secondary-btn" type="button"
-                hx-post="/admin/test"
-                hx-target="#admin-status"
-                hx-swap="innerHTML"
-                hx-disabled-elt="this">Тест провайдера</button>
-    </div>
-    <p>Источник runtime-конфига: <code>{{ runtime_config_path }}</code></p>
-    <p class="admin-foot__note">
-        Секреты (OPENAI_API_KEY, ADMIN_TOKEN) и bootstrap-параметры (хост/порт, пути)
-        живут в <code>.env</code> и требуют рестарта. Операторские параметры выше — нет.
-    </p>
-</footer>

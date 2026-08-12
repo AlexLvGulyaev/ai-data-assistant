@@ -76,6 +76,14 @@ class Settings(BaseSettings):
     # любым совместимым (GigaChat, YandexGPT, Gemini и т.п.) — endpoint/model
     # задаются оператором в runtime-конфиге, здесь — только секрет.
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    # Authorization key GigaChat (Сбер). Используется провайдером `gigachat`:
+    # OAuth-обмен на access token per-request в GigaChat-адаптере. Для OpenAI/
+    # YandexGPT/«Свой» не нужен (Yandex использует OPENAI_API_KEY как Bearer).
+    gigachat_auth_key: str | None = Field(default=None, alias="GIGACHAT_AUTH_KEY")
+    # Опциональный путь к CA-bundle для проверки TLS GigaChat (сертификат
+    # Минцифры РФ). Если не задан — проверка отключается (ssl.CERT_NONE), что
+    # приемлемо для dev/демо, но для prod рекомендуется указать bundle.
+    gigachat_ca_bundle: str | None = Field(default=None, alias="GIGACHAT_CA_BUNDLE")
     # Токен доступа к /admin. None — админка отключена (403). Передаётся через
     # HTTP Basic (пользователь `admin`, пароль = токен) — браузер сам держит
     # сессию, отдельная страница логина не нужна.

@@ -12,6 +12,11 @@ from starlette.exceptions import HTTPException
 from app.core.config import get_settings
 from app.services.ai_service import AIService
 from app.services.prompt_loader import PromptLoader
+from app.services.registries import (
+    PRESET_FIELD_MAP,
+    PROVIDER_ORDER,
+    PROVIDER_PRESETS,
+)
 from app.services.runtime_config import RUNTIME_KEYS, RuntimeConfig
 from app.services.usage_service import UsageService
 
@@ -40,59 +45,112 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 # --- Метаданные операторских параметров для UI ---
+# `help` — подробный комментарий, показываемый тултипом при наведении на лейбл
+# (паттерн AI Curator: .admin-tooltip/.admin-tooltip__text, чистый CSS).
 
 PARAM_META: dict[str, dict[str, Any]] = {
     "assistant_specialization": {
-        "label": "Специализация ассистента",
-        "hint": "Роль/профиль ассистента в системном промпте. Применяется на следующем запросе.",
+        "label": "Специализация",
         "kind": "text",
+        "help": "Роль/профиль ассистента. Подставляется в системный промпт на место "
+        "{{specialization}} — задаёт тон и область экспертизы. Применяется на "
+        "следующем запросе без рестарта.",
+    },
+    "provider": {
+        "label": "Провайдер",
+        "kind": "preset",
+        "help": "Пресет провайдера модели: OpenAI (эталон, drop-in), GigaChat (Сбер, "
+        "OAuth-адаптер), YandexGPT (folder_id + header) или «Свой» (любой "
+        "OpenAI-совместимый endpoint). Выбор пресета заполняет endpoint, модель, "
+        "имя и флаг structured_output. Секреты — в .env.",
     },
     "provider_name": {
-        "label": "Имя провайдера (для промпта)",
-        "hint": "Отображаемое имя провайдера в контенте. Пусто — нейтрально (без упоминания).",
+        "label": "Имя провайдера",
         "kind": "text",
         "placeholder": "(пусто = нейтрально)",
+        "help": "Отображаемое имя провайдера. Подставляется в системный промпт на место "
+        "{{provider_attribution}} как « от <имя>». Пусто — промпт не упоминает "
+        "провайдера (нейтрально). На сам запрос к модели не влияет, только на текст.",
     },
     "openai_model": {
         "label": "Модель",
-        "hint": "Имя модели провайдера, например gpt-5-mini, gigachat-pro.",
         "kind": "text",
+        "help": "Имя модели. OpenAI: gpt-5-mini, gpt-4o-mini и т.п. GigaChat: GigaChat-Max, "
+        "GigaChat-Pro. YandexGPT: URI вида gpt://<folder_id>/yandexgpt/latest — "
+        "folder_id подставляется автоматически из одноимённого параметра.",
     },
     "openai_base_url": {
-        "label": "Endpoint провайдера (base_url)",
-        "hint": "OpenAI-совместимый endpoint. Смена применяет новый клиент на следующем запросе.",
+        "label": "Endpoint (base_url)",
         "kind": "text",
+        "help": "OpenAI-совместимый endpoint провайдера. Для GigaChat это адрес API "
+        "(OAuth-обмен идёт отдельно в адаптере). Смена применяется на следующем "
+        "запросе — клиент пересоздаётся автоматически.",
     },
     "structured_output": {
-        "label": "Structured output (json_schema)",
-        "hint": "Вкл — строгий контракт ответа (для поддерживающих провайдеров). Выкл — свободный ответ с устойчивым парсером.",
+        "label": "Structured output",
         "kind": "bool",
+        "help": "Вкл — модель отвечает по строгой json_schema (действия и графики — из "
+        "реестров). Поддерживают OpenAI и «Свой». Выкл — свободный текст, разбирается "
+        "устойчивым парсером. GigaChat и YandexGPT не поддерживают json_schema strict "
+        "— для них пресет выключает этот флаг.",
     },
     "openai_temperature": {
-        "label": "Температура модели",
-        "hint": "Креативность 0–2. Отправляется ТОЛЬКО если явно задана (не сброшена) — иначе провайдер использует умолчание. Важно: gpt-5-mini и ряд моделей принимают только умолчательную температуру.",
+        "label": "Температура",
         "kind": "float",
+        "help": "Креативность ответа 0–2. Отправляется ТОЛЬКО если явно задана (не "
+        "сброшена). Важно: gpt-5-mini и ряд моделей принимают только умолчательную "
+        "температуру — при заданном значении они отвергают запрос. Если не уверены — "
+        "сбросьте (пусто).",
     },
     "openai_seed": {
-        "label": "Seed модели",
-        "hint": "Целое для воспроизводимости. Поддерживают не все провайдеры. Пусто — не отправляется.",
+        "label": "Seed",
         "kind": "int",
         "placeholder": "(пусто = не задавать)",
+        "help": "Целое число для воспроизводимости ответов. Поддерживают не все "
+        "провайдеры. Пусто — параметр не отправляется, провайдер использует своё "
+        "умолчание.",
     },
     "openai_max_history_messages": {
-        "label": "Сообщений истории в запросе",
-        "hint": "Сколько последних сообщений чата передаётся в модель.",
+        "label": "История в запросе",
         "kind": "int",
+        "help": "Сколько последних сообщений чата передаётся в модель вместе с текущим "
+        "запросом. Больше — контекстнее ответ, но дороже по токенам.",
     },
     "max_file_size": {
-        "label": "Лимит размера файла",
-        "hint": "Например 10MB, 5MB. Применяется к следующей загрузке.",
+        "label": "Лимит файла",
         "kind": "text",
+        "help": "Максимальный размер загружаемого файла (например 10MB, 5MB). "
+        "Применяется к следующей загрузке.",
+    },
+    "yandex_folder_id": {
+        "label": "Yandex folder_id",
+        "kind": "text",
+        "placeholder": "(только для YandexGPT)",
+        "help": "Идентификатор каталога (folder) Yandex Cloud. Нужен только для пресета "
+        "YandexGPT: подставляется в URI модели и в заголовок x-folder-id. Без него "
+        "YandexGPT не работает. Для остальных провайдеров игнорируется.",
     },
 }
 
-# Порядок вывода в UI.
-PARAM_ORDER = list(RUNTIME_KEYS)
+# Поля, живущие в секции «Провайдер» (заполняются пресетом, но редактируются и
+# по отдельности). Порядок = порядок вывода.
+PROVIDER_FIELD_KEYS: tuple[str, ...] = (
+    "openai_model",
+    "openai_base_url",
+    "provider_name",
+    "structured_output",
+)
+# Поля компактной сетки операторских параметров (справа под секцией провайдера).
+GENERAL_FIELD_KEYS: tuple[str, ...] = (
+    "assistant_specialization",
+    "openai_temperature",
+    "openai_seed",
+    "openai_max_history_messages",
+    "max_file_size",
+    "yandex_folder_id",
+)
+# Все ключи, кроме `provider` (он редактируется пресетами, не как обычное поле).
+PARAM_ORDER = [k for k in RUNTIME_KEYS if k != "provider"]
 
 
 def _require_admin(credentials: HTTPBasicCredentials | None = Depends(security)) -> None:
@@ -112,24 +170,47 @@ def _require_admin(credentials: HTTPBasicCredentials | None = Depends(security))
         )
 
 
-def _ordered_params() -> list[dict[str, Any]]:
+def _param_row(key: str) -> dict[str, Any]:
+    """Собрать строку-описание параметра для рендера карточки в UI."""
+    meta = PARAM_META.get(key, {"label": key, "kind": "text"})
+    value = runtime.get(key)
+    return {
+        "key": key,
+        "label": meta["label"],
+        "help": meta.get("help", ""),
+        "kind": meta["kind"],
+        "placeholder": meta.get("placeholder", ""),
+        "value": value,
+        "display": _display_value(value),
+    }
+
+
+def _param_rows(keys) -> list[dict[str, Any]]:
+    return [_param_row(key) for key in keys]
+
+
+def _provider_presets() -> list[dict[str, Any]]:
+    """Список пресетов для чипов с пометкой активного."""
+    active = runtime.get("provider")
     rows: list[dict[str, Any]] = []
-    current = runtime.as_dict()
-    for key in PARAM_ORDER:
-        meta = PARAM_META.get(key, {"label": key, "hint": "", "kind": "text"})
-        value = current.get(key)
+    for key in PROVIDER_ORDER:
+        preset = PROVIDER_PRESETS[key]
         rows.append(
             {
                 "key": key,
-                "label": meta["label"],
-                "hint": meta["hint"],
-                "kind": meta["kind"],
-                "placeholder": meta.get("placeholder", ""),
-                "value": value,
-                "display": _display_value(value),
+                "label": preset["label"],
+                "active": key == active,
             }
         )
     return rows
+
+
+def _provider_section_context() -> dict[str, Any]:
+    return {
+        "provider_presets": _provider_presets(),
+        "provider_fields": _param_rows(PROVIDER_FIELD_KEYS),
+        "provider": runtime.get("provider"),
+    }
 
 
 def _display_value(value: Any) -> str:
@@ -149,7 +230,7 @@ async def admin_panel(request: Request, _: None = Depends(_require_admin)):
     context = {
         "request": request,
         "page_title": "Админка оператора | Data Assistant",
-        "params": _ordered_params(),
+        "general_params": _param_rows(GENERAL_FIELD_KEYS),
         "runtime_config_path": str(runtime.path),
         "prompt_text": prompt_loader.read_system_prompt_raw(),
         "prompt_path": str(prompt_loader.system_prompt_path()),
@@ -158,10 +239,62 @@ async def admin_panel(request: Request, _: None = Depends(_require_admin)):
         "admin_enabled": True,
         "status_message": None,
         "status_kind": None,
+        **_provider_section_context(),
     }
     if request.headers.get("HX-Request") == "true":
         return templates.TemplateResponse("partials/admin_content.html", context)
     return templates.TemplateResponse("admin.html", context)
+
+
+@router.post("/provider", response_class=HTMLResponse)
+async def admin_apply_preset(
+    request: Request,
+    preset: str = Form(...),
+    _: None = Depends(_require_admin),
+):
+    """Применить пресет провайдера: записать `provider` + 4 поля (endpoint,
+    модель, имя, structured_output) из реестра пресетов в config.json.
+
+    Перерисовывает секцию «Провайдер» целиком (активный чип + новые значения
+    полей). Применяется на следующем запросе без рестарта.
+    """
+    if preset not in PROVIDER_PRESETS:
+        return templates.TemplateResponse(
+            "partials/admin_status.html",
+            {
+                "request": request,
+                "status_message": f"Неизвестный пресет: {preset}",
+                "status_kind": "error",
+            },
+        )
+    data = PROVIDER_PRESETS[preset]
+    try:
+        runtime.set("provider", preset)
+        for runtime_key, preset_key in PRESET_FIELD_MAP.items():
+            runtime.set(runtime_key, data[preset_key])
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Admin preset apply failed (%s): %s", preset, exc)
+        return templates.TemplateResponse(
+            "partials/admin_status.html",
+            {
+                "request": request,
+                "status_message": f"Ошибка применения пресета «{data['label']}»: {exc}",
+                "status_kind": "error",
+            },
+        )
+    label = data["label"]
+    return templates.TemplateResponse(
+        "partials/admin_provider.html",
+        {
+            "request": request,
+            "provider_status_message": (
+                f"Применён пресет «{label}». Endpoint, модель, имя и "
+                f"structured_output обновлены. Применится на следующем запросе."
+            ),
+            "provider_status_kind": "ok",
+            **_provider_section_context(),
+        },
+    )
 
 
 @router.post("/test", response_class=HTMLResponse)

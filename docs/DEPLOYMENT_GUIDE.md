@@ -41,10 +41,14 @@
 ## 4. Требования
 
 - Установленный Docker и Docker Compose (плагин `docker compose`, не `docker-compose` v1).
-- Ключ API провайдера модели (`OPENAI_API_KEY`) — для OpenAI: `sk-…`.
+- Ключ API провайдера модели (`OPENAI_API_KEY`) — для OpenAI: `sk-…`; для
+  YandexGPT сюда подставляется API-ключ Yandex (Bearer).
+- Опционально `GIGACHAT_AUTH_KEY` — authorization key Сбер, только если будете
+  использовать пресет GigaChat (подробнее — `OPERATOR_GUIDE.md` §4).
 - Токен админки (`ADMIN_TOKEN`) — для доступа к `/admin`.
 - Модель и endpoint провайдера задаются оператором в runtime (`/admin` или
-  `storage/config.json`); по умолчанию сеются `gpt-5-mini` и OpenAI endpoint.
+  `storage/config.json`); по умолчанию сеются пресет `openai`, `gpt-5-mini` и
+  OpenAI endpoint.
 
 ---
 
@@ -60,7 +64,9 @@ cp .env.example .env
 
 | Переменная | Обязательно | Описание |
 |------------|-------------|----------|
-| `OPENAI_API_KEY` | да | Ключ API провайдера (секрет) |
+| `OPENAI_API_KEY` | да | Ключ API провайдера: Bearer для OpenAI/YandexGPT/«Свой» (для Yandex — API-ключ Yandex) (секрет) |
+| `GIGACHAT_AUTH_KEY` | только для GigaChat | Authorization key Сбер (секрет) |
+| `GIGACHAT_CA_BUNDLE` | нет | Путь к CA-bundle для TLS GigaChat (без него — `ssl.CERT_NONE`) |
 | `ADMIN_TOKEN` | для `/admin` | Токен доступа к админке (HTTP Basic, пользователь `admin`) |
 | `APP_PORT` | нет (умолч. `8000`) | Порт хоста (только dev-режим с публикацией порта) |
 | `APP_HOST` | нет (умолч. `0.0.0.0`) | Хост |
@@ -301,7 +307,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ### Bootstrap-параметры (требуют рестарт)
 
-`OPENAI_API_KEY`, `ADMIN_TOKEN`, `APP_HOST`, `APP_PORT`, `LOG_LEVEL`, пути к каталогам, `PROMPTS_DIR`, `RUNTIME_CONFIG_PATH` — меняются в `.env` с последующим `docker compose up -d` (production) или рестартом. Операторских параметров в `.env` нет.
+`OPENAI_API_KEY`, `GIGACHAT_AUTH_KEY`, `GIGACHAT_CA_BUNDLE`, `ADMIN_TOKEN`, `APP_HOST`, `APP_PORT`, `LOG_LEVEL`, пути к каталогам, `PROMPTS_DIR`, `RUNTIME_CONFIG_PATH` — меняются в `.env` с последующим `docker compose up -d` (production) или рестартом. Операторских параметров в `.env` нет.
 
 ---
 
@@ -333,6 +339,6 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 | Порт занят | другой процесс на 8000 | `APP_PORT=80xx docker compose …` |
 | `/admin` → 403 | `ADMIN_TOKEN` не задан | задайте `ADMIN_TOKEN` в `.env`, рестарт |
 | `/admin` → 401 | неверный пароль | пароль = `ADMIN_TOKEN`, пользователь `admin` |
-| Модель не отвечает | неверный ключ/endpoint | проверьте `OPENAI_API_KEY`, `OPENAI_BASE_URL` (можно через `/admin`) |
+| Модель не отвечает | неверный ключ/endpoint/провайдер | проверьте `OPENAI_API_KEY` (или `GIGACHAT_AUTH_KEY` для GigaChat) и пресет провайдера в `/admin` → «Тест провайдера» |
 | Модель возвращает мусор | провайдер без structured output | `/admin` → `STRUCTURED_OUTPUT=false` |
 | Файл не прикреплён к чату | загрузка через standalone `/upload` | загружайте файл **в чат** (`/chat/{id}/message` с `data_file`) |

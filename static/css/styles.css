@@ -764,9 +764,12 @@ button,
 /* ===== Admin panel (вариант 3) ===== */
 
 .admin-shell {
-    max-width: 980px;
-    margin: 0 auto;
-    padding: 1.5rem 1.35rem 3rem;
+    /* Заполняем всю ширину page-frame (кап 1600px задаётся в .page-frame).
+       Раньше было max-width: 980px — на широком экране оставляло ~50% пустых
+       полей. Теперь боковые отступы минимальны. */
+    max-width: none;
+    margin: 0;
+    padding: 1.5rem 0.5rem 3rem;
 }
 
 .admin-head {
@@ -1034,12 +1037,190 @@ button,
     margin-top: 0.4rem;
 }
 
+/* ============================================================
+   Admin: двухколоночная раскладка + тултипы + пресеты провайдера
+   ============================================================ */
+
+/* Две колонки: слева — системный промпт (ядро, во всю высоту),
+   справа — управления (провайдер + операторские параметры + футер). */
+.admin-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(440px, 1fr);
+    gap: 1.2rem;
+    align-items: start;
+}
+
+.admin-layout__main {
+    min-width: 0;
+}
+
+.admin-layout__side {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    min-width: 0;
+}
+
+/* Промпт-карточка занимает левую колонку целиком. */
+.admin-card--prompt {
+    height: 100%;
+}
+
+.admin-card--prompt .admin-input--textarea {
+    min-height: 360px;
+    flex: 1;
+}
+
+/* Тултип на лейбле параметра (чистый CSS, паттерн AI Curator).
+   Наведи мышь на название параметра — появится подробный комментарий. */
+.admin-tooltip {
+    position: relative;
+    display: inline-block;
+    cursor: help;
+    border-bottom: 1px dotted var(--muted);
+}
+
+.admin-tooltip__text {
+    visibility: hidden;
+    opacity: 0;
+    width: 280px;
+    background: var(--ink);
+    color: #f4efe7;
+    text-align: left;
+    border: 1px solid rgba(28, 92, 120, 0.5);
+    border-radius: 10px;
+    padding: 0.55rem 0.7rem;
+    font-size: 0.78rem;
+    font-weight: 400;
+    line-height: 1.4;
+    box-shadow: 0 6px 20px rgba(31, 40, 51, 0.28);
+    position: absolute;
+    z-index: 1000;
+    bottom: 135%;
+    left: 50%;
+    transform: translateX(-50%);
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+}
+
+.admin-tooltip__text::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -6px;
+    border: 6px solid transparent;
+    border-top-color: var(--ink);
+}
+
+.admin-tooltip:hover .admin-tooltip__text,
+.admin-tooltip:focus-within .admin-tooltip__text {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Компактные карточки параметров (сетка операторских параметров). */
+.admin-card--param {
+    padding: 0.85rem 0.95rem 0.8rem;
+    gap: 0.45rem;
+}
+
+.admin-card--param .admin-card__head h2 {
+    font-size: 0.92rem;
+}
+
+.admin-card--param .admin-card__current {
+    font-size: 0.8rem;
+}
+
+.admin-card--param .admin-input {
+    padding: 0.5rem 0.7rem;
+    font-size: 0.86rem;
+}
+
+.admin-card--param .admin-form__actions .primary-btn,
+.admin-card--param .admin-form__actions .ghost-btn {
+    padding: 0.45rem 0.6rem;
+    font-size: 0.8rem;
+}
+
+/* Сетка операторских параметров — компактная (2+ колонок). */
+.admin-layout__side .admin-grid {
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 0.8rem;
+}
+
+/* Секция «Провайдер». */
+.admin-card--provider {
+    gap: 0.7rem;
+}
+
+.admin-provider-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.8rem;
+}
+
+/* Чипы пресетов провайдера. */
+.admin-presets__form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.preset-chip {
+    padding: 0.5rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid rgba(28, 92, 120, 0.22);
+    background: var(--panel-strong);
+    color: var(--ink);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.preset-chip:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.preset-chip--active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.preset-chip--active:hover {
+    background: var(--accent-strong);
+    border-color: var(--accent-strong);
+}
+
+.admin-provider__test {
+    margin-top: 0.2rem;
+}
+
+/* Статистика-полоса: делаем компактнее в верхней части. */
+.admin-usage {
+    margin-bottom: 1.2rem;
+}
+
+@media (max-width: 980px) {
+    .admin-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
 @media (max-width: 560px) {
     .admin-head {
         flex-direction: column;
     }
     .admin-form__actions {
         flex-direction: column;
+    }
+    .admin-provider-fields,
+    .admin-layout__side .admin-grid {
+        grid-template-columns: 1fr;
     }
 }
 

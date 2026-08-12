@@ -52,7 +52,10 @@ AIService ──читает реестры──► registries (ACTION_TYPES, C
 `app/core/config.py` — Pydantic `BaseSettings`. Здесь живут **только** параметры,
 которыми реально управляет окружение процесса:
 
-- **Секреты:** `OPENAI_API_KEY`, `ADMIN_TOKEN` — только в `.env`, никогда в config.json.
+- **Секреты:** `OPENAI_API_KEY` (Bearer для OpenAI/YandexGPT/«Свой»; для Yandex это
+  API-ключ Yandex), `GIGACHAT_AUTH_KEY` (authorization key Сбер — только для
+  пресета GigaChat), `GIGACHAT_CA_BUNDLE` (опц. CA-bundle для TLS GigaChat),
+  `ADMIN_TOKEN` — только в `.env`, никогда в config.json.
 - **Bootstrap:** `APP_HOST`, `APP_PORT`, `LOG_LEVEL`, пути к каталогам
   (`UPLOAD_DIR`, `OUTPUT_DIR`, `STORAGE_DIR`, `TEMPLATES_DIR`, `STATIC_DIR`,
   `PROMPTS_DIR`), `RUNTIME_CONFIG_PATH`.
@@ -81,22 +84,31 @@ JSON-файл + mtime-кеш + `threading.Lock`:
 | Ключ | Тип | Seeded | Назначение |
 |------|-----|--------|------------|
 | `assistant_specialization` | str | да | Роль в системном промпте |
-| `openai_model` | str | да | Модель |
-| `openai_base_url` | str | да | Endpoint провайдера |
+| `provider` | str | да | Пресет провайдера (`openai`/`gigachat`/`yandex`/`custom`) |
+| `openai_model` | str | да | Модель (generic; для Yandex — URI с `<folder_id>`) |
+| `openai_base_url` | str | да | Endpoint провайдера (generic) |
 | `structured_output` | bool | да | Строгий контракт ответа |
 | `openai_max_history_messages` | int | да | Сообщений истории в запросе |
 | `max_file_size` | str | да | Лимит файла (напр. `10MB`) |
 | `provider_name` | str\|null | **нет** (opt-in) | Имя провайдера в контенте (null = нейтрально) |
 | `openai_temperature` | float | **нет** (opt-in) | Температура; отправляется только если задана |
 | `openai_seed` | int\|null | **нет** (opt-in) | Seed; отправляется только если задан |
+| `yandex_folder_id` | str\|null | **нет** (opt-in) | Folder Yandex Cloud (только для пресета `yandex`) |
+
+> Ключи `openai_base_url`/`openai_model` имеют исторический префикс `openai_`,
+> но фактически это **generic** endpoint/model — используются всеми пресетами.
+> Выбор пресета в `/admin` (POST `/admin/provider`) заполняет `provider` +
+> эти поля из реестра `PROVIDER_PRESETS` (см. §4); поля остаются независимо
+> редактируемыми.
 
 > **Почему opt-in ключи не сеются.** `ensure_initialized` сеет только
-> `SEEDED_KEYS`; `provider_name`/`openai_temperature`/`openai_seed` остаются
-> отсутствующими, пока оператор их не задаст. Поэтому `has("openai_temperature")`
-> после чистого старта — `False`, и температура **не отправляется** в запрос.
-> Это портабельность: модели вроде `gpt-5-mini` принимают только умолчательную
-> температуру и отвергают любое иное значение. Оператор, явно задавший
-> температуру в `/admin`, получает `has()=True` — она отправляется.
+> `SEEDED_KEYS`; `provider_name`/`openai_temperature`/`openai_seed`/
+> `yandex_folder_id` остаются отсутствующими, пока оператор их не задаст.
+> Поэтому `has("openai_temperature")` после чистого старта — `False`, и
+> температура **не отправляется** в запрос. Это портабельность: модели вроде
+> `gpt-5-mini` принимают только умолчательную температуру и отвергают любое
+> иное значение. Оператор, явно задавший температуру в `/admin`, получает
+> `has()=True` — она отправляется.
 
 ### Системный промпт — файл `prompts/v1/system.md` (`PromptLoader`, без рестарта)
 
@@ -131,20 +143,55 @@ CHART_TYPES  = ("histogram", "bar", "line", "pie")
 
 Следствие: модель **не может** вернуть действие или график, который приложение не умеет исполнять. Добавление нового графика — одна строка в реестре + реализация в `chart_service`.
 
+### Реестр пресетов провайдеров (`PROVIDER_PRESETS`)
+
+Тот же файл `registries.py` хранит пресеты провайдеров для `/admin`. Каждый
+пресет: `label`, `provider_name`, `base_url`, `default_model`,
+`structured_output`, `auth_mode` (`openai_key` | `gigachat_oauth` |
+`yandex_folder`), опц. `token_url`/`scope` для GigaChat. `PROVIDER_ORDER` —
+порядок чипов в UI; `PRESET_FIELD_MAP` — отображение runtime-ключей на поля
+пресета (применение пресета пишет `provider` + 4 поля). Значения сверены с
+официальной документацией провайдеров (см. `docs/external-providers.md`).
+
+| Пресет | auth_mode | Секрет | structured_output | Код-путь |
+|--------|-----------|--------|-------------------|----------|
+| `openai` | `openai_key` | `OPENAI_API_KEY` | да | OpenAI SDK |
+| `gigachat` | `gigachat_oauth` | `GIGACHAT_AUTH_KEY` | нет | GigaChat-адаптер |
+| `yandex` | `yandex_folder` | `OPENAI_API_KEY` + `yandex_folder_id` | нет | OpenAI SDK + `default_headers` |
+| `custom` | `openai_key` | `OPENAI_API_KEY` | да | OpenAI SDK |
+
 ---
 
 ## 5. AI-слой (AIService)
 
-`app/services/ai_service.py`:
+`app/services/ai_service.py` — мультипровайдерный. Провайдер определяется
+runtime-ключом `provider` (пресет); `AIService` маршрутизирует запрос по
+`auth_mode` пресета:
 
-- **Chat Completions** (`client.chat.completions.create`) — не Responses API.
-- **Портабельный клиент**: `OpenAI(api_key, base_url=runtime.openai_base_url)`; клиент пересоздаётся при смене `base_url` в runtime.
+- **OpenAI SDK путь** (`openai`/`yandex`/`custom`): `client.chat.completions.create`.
+  Клиент `OpenAI(api_key, base_url, default_headers=…)` пересоздаётся при смене
+  `base_url`/`provider`/`yandex_folder_id`. Для `yandex` добавляются
+  `default_headers` (`x-folder-id`, `x-data-logging-enabled: false`) и
+  подстановка `<folder_id>` в имя модели (`_effective_model`).
+- **GigaChat путь** (`gigachat`): `app/services/gigachat_adapter.py` — прямой HTTP,
+  OAuth-обмен `GIGACHAT_AUTH_KEY` → access token **per-request** (refresh скрыт,
+  ручного обновления не требуется; подход заимствован из AI Curator). Без
+  structured_output — ответ разбирается устойчивым парсером free-text.
+  Мультимедийные блоки (изображения) сглаживаются в текст (`GigaChat` не
+  поддерживает `image_url` в нашем контракте).
+
+Общие свойства:
+
+- **Chat Completions** — не Responses API.
 - **Промпт из файла**: `PromptLoader.load_system_prompt(variables=…)` с интерполяцией `{{specialization}}`, `{{provider_attribution}}`.
-- **Structured output**: `response_format: {type: "json_schema", json_schema: …}` strict, схема из реестров. Включается только если `runtime.structured_output == true`.
+- **Structured output** (OpenAI SDK путь): `response_format: {type: "json_schema", json_schema: …}` strict, схема из реестров. Включается только если `runtime.structured_output == true`.
 - **Fallback-парсер**: при отключённом structured output или невалидном JSON — устойчивый разбор с валидацией против реестров.
-- **Мультимодал**: изображение передаётся как `image_url` (data URL).
+- **Мультимодал** (OpenAI SDK путь): изображение передаётся как `image_url` (data URL).
+- **`enabled`**: по провайдеру — `gigachat` требует `GIGACHAT_AUTH_KEY`; прочие — `OPENAI_API_KEY` + пакет `openai`.
+- **`test_connection`**: диагностический пинг, маршрутизируется по провайдеру (GigaChat — через адаптер), не пишет в usage.
+- **TLS GigaChat**: при заданном `GIGACHAT_CA_BUNDLE` — проверка сертификата Минцифры; иначе `ssl.CERT_NONE` (dev/демо; для prod рекомендуется CA-bundle).
 
-Все runtime-значения (модель, base_url, structured_output, история, специализация, провайдер) читаются из `RuntimeConfig` на каждом запросе — поэтому правки через `/admin` применяются без рестарта.
+Все runtime-значения (провайдер, модель, base_url, structured_output, история, специализация) читаются из `RuntimeConfig` на каждом запросе — поэтому правки через `/admin` применяются без рестарта.
 
 ---
 
@@ -195,10 +242,20 @@ CHART_TYPES  = ("histogram", "bar", "line", "pie")
 `app/routes/admin.py` + `templates/admin.html`:
 
 - Доступ: HTTP Basic (пользователь `admin`, пароль = `ADMIN_TOKEN`). Если `ADMIN_TOKEN` не задан — `/admin` отключён (403).
+- **Двухколоночная раскладка**: слева — системный промпт (ядро задачи, во всю
+  высоту), справа — управления. Статистика использования — компактной полосой
+  сверху. Тултипы на лейблах параметров (чистый CSS, паттерн AI Curator):
+  наведите мышь на название параметра — появится подробный комментарий.
+- **Секция «Провайдер»**: чипы пресетов (OpenAI / GigaChat / YandexGPT / Свой);
+  клик применяет пресет (POST `/admin/provider` — перерисовывает секцию с
+  активным чипом и обновлёнными полями). Под чипами — 4 редактируемых поля
+  (модель, endpoint, имя, structured_output) и кнопка «Тест провайдера».
 - GET `/admin` — карточки операторских параметров с текущими значениями.
 - POST `/admin/update` — `key` + `value` → `RuntimeConfig.set()`, возвращает HTMX-паршал статуса + обновлённое отображение.
-- POST `/admin/reset` — сброс к умолчанию.
-- Каждый параметр: подпись, подсказка, текущее значение, поле ввода, кнопки «Сохранить»/«Сбросить».
+- POST `/admin/reset` — сброс к умолчанию (для opt-in = «не задавать»).
+- POST `/admin/provider` — применить пресет (см. выше).
+- POST `/admin/test` — диагностический пинг текущего провайдера (без записи в usage).
+- POST `/admin/prompt` — сохранить системный промпт в файл `prompts/v1/system.md`.
 
 Применятеся на следующем запросе без рестарта — доказано в работающем контейнере.
 

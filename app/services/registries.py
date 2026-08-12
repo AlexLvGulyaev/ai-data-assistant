@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 """Единый источник истины для разрешённых действий и типов графиков.
 
 Реестры используются везде, где раньше хардкодились множества:
@@ -57,4 +59,72 @@ CHART_TYPE_QUICK_PROMPTS: dict[str, str] = {
     "bar": "Построй bar chart: сравни средние основной числовой метрики по категориальной колонке",
     "line": "Построй line chart: динамику основной числовой метрики по оси даты",
     "pie": "Построй pie chart: доли основной числовой метрики по категориальной колонке",
+}
+
+
+# --- Провайдеры модели ---
+
+# Пресеты провайдеров для админки `/admin`. Каждый пресет описывает параметры,
+# которые оператор применяет одним кликом (endpoint, модель, имя провайдера для
+# атрибуции, флаг structured_output), и режим аутентификации `auth_mode`, по
+# которому `AIService` выбирает код-путь запроса:
+#   - `openai_key`    : OpenAI SDK, ключ-секрет как Bearer (OpenAI, «Свой»).
+#   - `gigachat_oauth`: GigaChat-адаптер (OAuth-обмен ключа на access token
+#                       per-request; structured_output не поддерживается).
+#   - `yandex_folder` : OpenAI SDK + default_headers `x-folder-id` (+ opt
+#                       `x-data-logging-enabled: false`); folder_id — отдельный
+#                       runtime-ключ `yandex_folder_id`.
+# Поля `base_url`/`default_model` пресета пишет операторский выбор в
+# `config.json` (ключи `openai_base_url`/`openai_model` — исторический префикс,
+# фактически это generic endpoint/model). Значения сверены с официальной
+# документацией провайдеров (см. docs/external-providers.md).
+PROVIDER_PRESETS: dict[str, dict[str, Any]] = {
+    "openai": {
+        "label": "OpenAI",
+        "provider_name": "OpenAI",
+        "base_url": "https://api.openai.com/v1",
+        "default_model": "gpt-5-mini",
+        "structured_output": True,
+        "auth_mode": "openai_key",
+    },
+    "gigachat": {
+        "label": "GigaChat (Сбер)",
+        "provider_name": "GigaChat",
+        "base_url": "https://gigachat.devices.sberbank.ru/api/v1",
+        "default_model": "GigaChat-Max",
+        "structured_output": False,
+        "auth_mode": "gigachat_oauth",
+        "token_url": "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
+        "scope": "GIGACHAT_API_PERS",
+    },
+    "yandex": {
+        "label": "YandexGPT",
+        "provider_name": "YandexGPT",
+        "base_url": "https://llm.api.cloud.yandex.net/v1",
+        "default_model": "gpt://<folder_id>/yandexgpt/latest",
+        "structured_output": False,
+        "auth_mode": "yandex_folder",
+    },
+    "custom": {
+        "label": "Свой (OpenAI-совместимый)",
+        "provider_name": None,
+        "base_url": "",
+        "default_model": "",
+        "structured_output": True,
+        "auth_mode": "openai_key",
+    },
+}
+
+# Порядок вывода пресетов в UI (OpenAI — эталон/умолчание — первым).
+PROVIDER_ORDER: tuple[str, ...] = ("openai", "gigachat", "yandex", "custom")
+
+# Какие runtime-ключи заполняет выбор пресета, и из какого поля пресета берётся
+# значение. Ключи runtime исторически имеют префикс openai_ (фактически это
+# generic endpoint/model); поля пресета названы семантически — поэтому отображение
+# явное. `provider` (preset key) пишется отдельно от этих полей.
+PRESET_FIELD_MAP: dict[str, str] = {
+    "openai_base_url": "base_url",
+    "openai_model": "default_model",
+    "provider_name": "provider_name",
+    "structured_output": "structured_output",
 }
