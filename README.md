@@ -121,6 +121,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ## Документация
 
+- [`docs/BUSINESS_VALUE.md`](docs/BUSINESS_VALUE.md) — бизнес-ценность: позиционирование, количественные оценки, целевые заказчики, риски.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — архитектура, слои, реестры, runtime-конфиг.
 - [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) — контракт HTTP-эндпоинтов (Web UI as-is).
 - [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md) — воспроизводимое развёртывание (Source of Truth).
