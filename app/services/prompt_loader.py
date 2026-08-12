@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import Settings, get_settings
-from app.services.runtime_config import RuntimeConfig
 
 logger = logging.getLogger(__name__)
 
@@ -14,49 +13,47 @@ DEFAULT_VERSION = "v1"
 
 
 class PromptLoader:
-    """Загрузчик версионированных промптов и схем из каталога `prompts/`.
+    """Загрузчик версионированных промптов из каталога `prompts/`.
 
-    Чтение с mtime-кешем: правка файлов `system.md` / `response-schema.json`
-    применяется в runtime без рестарта процесса (вариант 3 — оператор без
-    программиста). Используется вместе с runtime-config provider'ом для
-    подстановки операторских параметров в шаблон.
-
-    Если в runtime-config задан `system_prompt_override` (через админку), он
-    используется как шаблон вместо файла — оператор меняет промпт без правки
-    файлов образа. Override проходит через ту же интерполяцию переменных.
+    Единственный источник истины текста системного промпта — файл
+    `prompts/<version>/system.md`. Чтение с mtime-кешем: правка файла
+    (через `/admin` или файловым менеджером) применяется в runtime без
+    рестарта процесса. Никакого override в config.json — одна точка правки,
+    сам файл. Админка пишет в этот же файл (write_system_prompt).
 
     Переменные шаблона `system.md`:
-        {{specialization}}         — роль/специализация ассистента.
+        {{specialization}}         — роль/специализация ассистента (операторский
+                                     параметр из runtime-config).
         {{provider_attribution}}   — атрибуция провайдера вида " от OpenAI"
                                      либо пустая строка (нейтральный промпт).
     """
 
-    def __init__(
-        self,
-        settings: Settings | None = None,
-        runtime: RuntimeConfig | None = None,
-    ) -> None:
+    def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
-        self._runtime = runtime
         self._text_cache: dict[Path, tuple[float, str]] = {}
+
+    def system_prompt_path(self, version: str = DEFAULT_VERSION) -> Path:
+        return self.settings.prompts_dir / version / "system.md"
 
     def load_system_prompt(
         self,
         version: str = DEFAULT_VERSION,
         variables: dict[str, str] | None = None,
     ) -> str:
-        override = None
-        if self._runtime is not None:
-            try:
-                override = self._runtime.get("system_prompt_override")
-            except KeyError:
-                override = None
-        if override:
-            template = str(override).strip()
-        else:
-            path = self.settings.prompts_dir / version / "system.md"
-            template = self._read_cached(path).strip()
+        template = self.read_system_prompt_raw(version).strip()
         return self._interpolate(template, variables or {})
+
+    def read_system_prompt_raw(self, version: str = DEFAULT_VERSION) -> str:
+        """Сырой текст файла промпта (без интерполяции) — для редактора админки."""
+        return self._read_cached(self.system_prompt_path(version))
+
+    def write_system_prompt(self, text: str, version: str = DEFAULT_VERSION) -> None:
+        """Записать промпт в файл (админка). Инвалидирует mtime-кеш."""
+        path = self.system_prompt_path(version)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        self._text_cache.pop(path, None)
+        logger.info("System prompt written: %s", path)
 
     def load_response_schema(self, version: str = DEFAULT_VERSION) -> dict[str, Any]:
         path = self.settings.prompts_dir / version / "response-schema.json"

@@ -41,41 +41,74 @@ AIService ──читает реестры──► registries (ACTION_TYPES, C
 
 ---
 
-## 3. Конфигурация: bootstrap vs runtime
+## 3. Конфигурация: три источника истины, без дублирования
 
-### Bootstrap (Settings, `.env`, рестарт)
+Приложение строго разделяет три класса параметров, у каждого — единственный
+источник истины (SSOT). Перекрытия и дублирование умолчаний между слоями
+отсутствуют намеренно.
 
-`app/core/config.py` — Pydantic `BaseSettings`. Стартовые параметры, замораживаются при старте процесса:
+### Секреты и bootstrap — `.env` (`Settings`, рестарт)
 
-- `APP_HOST`, `APP_PORT`, `LOG_LEVEL`
-- `OPENAI_API_KEY` (секрет — только в `.env`, не в runtime-config)
-- пути к каталогам (`UPLOAD_DIR`, `OUTPUT_DIR`, `PROMPTS_DIR`, …)
-- `RUNTIME_CONFIG_PATH` — путь к JSON runtime-конфига
-- `ADMIN_TOKEN` — доступ к `/admin`
-- **умолчания** операторских параметров (`OPENAI_MODEL`, `OPENAI_BASE_URL`, `ASSISTANT_SPECIALIZATION`, `STRUCTURED_OUTPUT`, `MAX_FILE_SIZE`, `PROVIDER_NAME`, `OPENAI_MAX_HISTORY_MESSAGES`)
+`app/core/config.py` — Pydantic `BaseSettings`. Здесь живут **только** параметры,
+которыми реально управляет окружение процесса:
 
-### Runtime (RuntimeConfig, `storage/config.json`, без рестарта)
+- **Секреты:** `OPENAI_API_KEY`, `ADMIN_TOKEN` — только в `.env`, никогда в config.json.
+- **Bootstrap:** `APP_HOST`, `APP_PORT`, `LOG_LEVEL`, пути к каталогам
+  (`UPLOAD_DIR`, `OUTPUT_DIR`, `STORAGE_DIR`, `TEMPLATES_DIR`, `STATIC_DIR`,
+  `PROMPTS_DIR`), `RUNTIME_CONFIG_PATH`.
 
-`app/services/runtime_config.py` — операторские параметры. JSON-файл + mtime-кеш:
+Все они требуют рестарта процесса. Операторских параметров в `.env` НЕТ.
 
-- Чтение `get(key)`: если ключ в файле — берётся оттуда, иначе fallback к умолчанию из `Settings`.
+### Операторские параметры — `storage/config.json` (`RuntimeConfig`, без рестарта)
+
+`app/services/runtime_config.py` — единый SOT операторских параметров.
+JSON-файл + mtime-кеш + `threading.Lock`:
+
+- **Первоначальная инициализация из хардкода:** при первом старте
+  `ensure_initialized()` сеет `storage/config.json` значениями из хардкоженного
+  словаря `DEFAULTS` (только `SEEDED_KEYS`). Это намеренный хардкод, а не `.env`:
+  одна точка правки умолчаний, `.env` не дублирует операторские параметры.
+- Чтение `get(key)`: если ключ в файле — берётся оттуда, иначе fallback к `DEFAULTS`.
+- `has(key)`: отличает «явно задан в файле» от «fallback» — критично для
+  портабельности (см. ниже).
 - Запись `set(key, value)` (через `/admin`): атомарная запись, инвалидация кеша.
-- `reset(key)`: удаление ключа — возврат к умолчанию.
-- mtime-кеш: правка файла (через `/admin` **или** файловый менеджер) применяется на следующем запросе без рестарта.
+- `reset(key)`: удаление ключа — возврат к `DEFAULTS` (для opt-in = «не задавать»).
+- mtime-кеш: правка файла (через `/admin` **или** файловым менеджером)
+  применяется на следующем запросе без рестарта.
 
-`RUNTIME_KEYS`:
+`RUNTIME_KEYS` (порядок = порядок в `/admin`):
 
-| Ключ | Тип | Назначение |
-|------|-----|------------|
-| `assistant_specialization` | str | Роль в системном промпте |
-| `provider_name` | str\|null | Имя провайдера в контенте (null = нейтрально) |
-| `openai_model` | str | Модель |
-| `openai_base_url` | str | Endpoint провайдера |
-| `structured_output` | bool | Строгий контракт ответа |
-| `openai_max_history_messages` | int | Сообщений истории в запросе |
-| `max_file_size` | str | Лимит файла (напр. `10MB`) |
+| Ключ | Тип | Seeded | Назначение |
+|------|-----|--------|------------|
+| `assistant_specialization` | str | да | Роль в системном промпте |
+| `openai_model` | str | да | Модель |
+| `openai_base_url` | str | да | Endpoint провайдера |
+| `structured_output` | bool | да | Строгий контракт ответа |
+| `openai_max_history_messages` | int | да | Сообщений истории в запросе |
+| `max_file_size` | str | да | Лимит файла (напр. `10MB`) |
+| `provider_name` | str\|null | **нет** (opt-in) | Имя провайдера в контенте (null = нейтрально) |
+| `openai_temperature` | float | **нет** (opt-in) | Температура; отправляется только если задана |
+| `openai_seed` | int\|null | **нет** (opt-in) | Seed; отправляется только если задан |
 
-> Секреты (`OPENAI_API_KEY`, `ADMIN_TOKEN`) **никогда** не входят в runtime-config — только в `.env`.
+> **Почему opt-in ключи не сеются.** `ensure_initialized` сеет только
+> `SEEDED_KEYS`; `provider_name`/`openai_temperature`/`openai_seed` остаются
+> отсутствующими, пока оператор их не задаст. Поэтому `has("openai_temperature")`
+> после чистого старта — `False`, и температура **не отправляется** в запрос.
+> Это портабельность: модели вроде `gpt-5-mini` принимают только умолчательную
+> температуру и отвергают любое иное значение. Оператор, явно задавший
+> температуру в `/admin`, получает `has()=True` — она отправляется.
+
+### Системный промпт — файл `prompts/v1/system.md` (`PromptLoader`, без рестарта)
+
+Единый SOT текста промпта — сам файл (не config.json). Чтение с mtime-кешем;
+оператор правит его через `/admin` (POST `/admin/prompt` пишет в файл) или
+файловым менеджером — применяется на следующем запросе. В production каталог
+`prompts/` монтируется volume (`./prompts:/app/prompts`), чтобы правки переживали
+пересборку. Переменные шаблона `{{specialization}}` / `{{provider_attribution}}`
+интерполируются значениями из `RuntimeConfig`.
+
+> Секреты (`OPENAI_API_KEY`, `ADMIN_TOKEN`) **никогда** не входят в config.json
+> и не пишутся в файл промпта — только в `.env`.
 
 ---
 

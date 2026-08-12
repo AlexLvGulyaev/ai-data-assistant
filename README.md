@@ -16,7 +16,7 @@ AI-чат для анализа данных на FastAPI + Jinja2 + HTMX. За�
 - **Загрузка файлов** — CSV, Excel (`.xlsx`/`.xls`), JSON, изображения (PNG/JPG/JPEG/BMP/GIF/WEBP).
 - **Графики** — `histogram`, `bar`, `line`, `pie` в PNG. Тип и колонки подбирает модель либо оператор.
 - **DOCX-отчёты** — отчёт по файлу с графиками и метриками, скачивается из чата.
-- **Провайдер-портабельность** — любой OpenAI-совместимый endpoint через `OPENAI_BASE_URL`.
+- **Провайдер-портабельность** — любой OpenAI-совместимый endpoint (OpenAI, GigaChat, YandexGPT и др.) через runtime-параметр `openai_base_url` (`/admin`, без рестарта).
 - **Runtime-конфиг оператора** — специализацию, модель, лимиты и другие параметры меняет оператор через веб-админку `/admin` **без пересборки и рестарта контейнера**.
 - **Structured output** — строгий контракт ответа модели через `json_schema` (отключается для провайдеров без поддержки).
 
@@ -59,19 +59,21 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ## Переменные окружения
 
-Полный список — в [`.env.example`](.env.example) и [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md#переменные-окружения).
+В `.env` живут **только секреты и bootstrap** (хост/порт, логирование, пути).
+Операторские параметры (модель, endpoint, специализация, температура, лимиты
+файла и др.) единственным источником истины имеют `storage/config.json`
+(начальные значения сеются из хардкоженных умолчаний при первом старте) —
+меняются через `/admin` без рестарта. Полный список — в [`.env.example`](.env.example)
+и [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md#переменные-окружения).
 
 | Переменная | Назначение | Режим изменения |
 |------------|------------|-----------------|
-| `OPENAI_API_KEY` | Ключ API провайдера | `.env` (рестарт) |
-| `OPENAI_BASE_URL` | Endpoint провайдера | `.env` (умолчание) **или `/admin` (runtime)** |
-| `OPENAI_MODEL` | Модель | `.env` (умолчание) **или `/admin` (runtime)** |
-| `OPENAI_TEMPERATURE` | Температура модели (0–2) | `.env` (умолчание) **или `/admin` (runtime)** |
-| `OPENAI_SEED` | Seed для воспроизводимости | `.env` (умолчание) **или `/admin` (runtime)** |
-| `ASSISTANT_SPECIALIZATION` | Специализация в промпте | `.env` (умолчание) **или `/admin` (runtime)** |
-| `STRUCTURED_OUTPUT` | Строгий контракт ответа | `.env` (умолчание) **или `/admin` (runtime)** |
-| `MAX_FILE_SIZE` | Лимит размера файла | `.env` (умолчание) **или `/admin` (runtime)** |
-| `ADMIN_TOKEN` | Доступ к `/admin` | `.env` (рестарт) |
+| `OPENAI_API_KEY` | Ключ API провайдера (секрет) | `.env` (рестарт) |
+| `ADMIN_TOKEN` | Доступ к `/admin` (секрет) | `.env` (рестарт) |
+| `APP_HOST` / `APP_PORT` | Хост/порт | `.env` (рестарт) |
+| `LOG_LEVEL` | Уровень логирования | `.env` (рестарт) |
+| Пути (`UPLOAD_DIR`, `PROMPTS_DIR`, `RUNTIME_CONFIG_PATH`, …) | Каталоги и файлы | `.env` (рестарт) |
+| Модель, endpoint, температура, специализация, лимиты, … | Операторские параметры | `storage/config.json` → `/admin` (без рестарта) |
 
 ---
 

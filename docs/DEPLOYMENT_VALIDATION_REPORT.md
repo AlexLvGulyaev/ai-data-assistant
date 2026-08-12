@@ -90,3 +90,40 @@ router `data-assistant` + service → `http://data-assistant:8000`) примен
 
 **Публичный эндпоинт работоспособен:** `https://data-assistant.alex-n8n.site`
 отдаёт UI чата и `/health` по HTTPS с валидным сертификатом Let's Encrypt.
+
+---
+
+## Приложение B. Перевалидация после SSOT-рефактора (2026-08-12)
+
+**Повод:** изменение `docker-compose.yml` (добавлен volume `./prompts:/app/prompts`),
+слоя конфигурации (`config.py` — из `.env` убраны операторские параметры,
+оставлены только секреты+bootstrap; `runtime_config.py` — `config.json` стал
+единственным SOT с хардкоженным `DEFAULTS` и `ensure_initialized`), переноса
+системного промпта на модель «файл = SOT» (POST `/admin/prompt` пишет в
+`prompts/v1/system.md`), обновления DEPLOYMENT_GUIDE/ARCHITECTURE/OPERATOR_GUIDE.
+По стандарту APL любое изменение compose/инфра требует перевалидации.
+
+**Окружение:** пересборка образа из артефактов репозитория на том же Docker Host
+(`docker compose -f docker-compose.yml up -d --build`). Это **Verification +
+functional Validation** в существенном объёме, но не строго чистый VPS —
+полная clean-env перевалидация (новый VPS) остаётся на усмотрение оператора.
+Ниже — проверенные шаги.
+
+| # | Шаг | Команда | Ожидание | Факт | Статус |
+|---|-----|---------|----------|------|--------|
+| R1 | Пересборка production | `docker compose -f docker-compose.yml up -d --build` | образ собран, контейнер Up | образ `ai-data-assistant-web:latest` пересобран, `data-assistant` Up | PASS |
+| R2 | Health (в контейнере) | `urllib.urlopen('/health')` | `{"status":"ok",...}` | `{"status":"ok","app":"Data Assistant"}` | PASS |
+| R3 | ensure_initialized: засев config.json | `cat /app/storage/config.json` (до этого — отсутствовал) | 6 SEEDED_KEYS, opt-in отсутствуют | `assistant_specialization, openai_model, openai_base_url, structured_output, openai_max_history_messages, max_file_size`; `provider_name/openai_temperature/openai_seed` отсутствуют | PASS |
+| R4 | Opt-in `has()`=False | `RuntimeConfig.has(...)` | False для temperature/seed/provider_name | `False / False / False`; `get(openai_temperature)`=0.0 (default) | PASS |
+| R5 | Промпт-SOT: запись через /admin | `POST /admin/prompt` (пересохранён текущий контент) | 200, status--ok, файл на хосте обновлён (mountpersist) | `Системный промпт сохранён`; mtime хост-файла `prompts/v1/system.md` изменился, контент цел | PASS |
+| R6 | /admin рендер | `GET /admin` | карточка «Системный промпт», путь файла, нет override, dashboard, тест, opt-in hint | все 6 проверок OK | PASS |
+| R7 | Реальный AI-запрос (gpt-5-mini) | `AIService.plan_response(...)` | успех, без ошибки температуры | `assistant_message: Готов`; `actions: []` — температура не отправлена (`has=False`), модель не отвергла | PASS |
+| R8 | Публичный эндпоинт | `curl https://data-assistant.alex-n8n.site/health` | HTTP 200, JSON | HTTP 200, `{"status":"ok","app":"Data Assistant"}` | PASS |
+| R9 | Секреты вне config.json | `config.json` не содержит `api_key`/`admin_token` | только операторские ключи | secrets отсутствуют в `config.json` (только в `.env`) | PASS |
+
+**Итог приложения B:** 9/9 PASS. SSOT-рефактор воспроизведён пересборкой из
+артефактов репозитория: `config.json` сеется из хардкода, opt-in ключи
+отсутствуют (`has()=False` → gpt-5-mini не отвергает запрос), промпт-файл
+редактируется через `/admin` и переживает пересборку через volume, секреты
+остаются только в `.env`. Строго clean-env перевалидация (новый VPS) — за
+оператором; до её проведения изменение считается верифицированным функционально.

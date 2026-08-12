@@ -16,7 +16,7 @@ from fastapi import UploadFile
 from PIL import Image, UnidentifiedImageError
 
 from app.core.config import Settings, get_settings, parse_size_to_bytes
-from app.services.runtime_config import RuntimeConfig
+from app.services.runtime_config import DEFAULTS, RuntimeConfig
 
 
 logger = logging.getLogger(__name__)
@@ -93,7 +93,10 @@ class FileService:
         try:
             return parse_size_to_bytes(raw), str(raw)
         except ValueError:
-            return self.settings.max_file_size_bytes, self.settings.max_file_size
+            # Невалидное значение оператора — fallback к хардкоженному умолчанию
+            # из DEFAULTS (тот же источник, что и ensure_initialized).
+            fallback = DEFAULTS["max_file_size"]
+            return parse_size_to_bytes(fallback), str(fallback)
 
     def ensure_storage(self) -> None:
         self.settings.upload_dir.mkdir(parents=True, exist_ok=True)

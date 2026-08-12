@@ -42,8 +42,9 @@
 
 - Установленный Docker и Docker Compose (плагин `docker compose`, не `docker-compose` v1).
 - Ключ API провайдера модели (`OPENAI_API_KEY`) — для OpenAI: `sk-…`.
-- (Опционально) `OPENAI_BASE_URL` — для не-OpenAI провайдера.
 - Токен админки (`ADMIN_TOKEN`) — для доступа к `/admin`.
+- Модель и endpoint провайдера задаются оператором в runtime (`/admin` или
+  `storage/config.json`); по умолчанию сеются `gpt-5-mini` и OpenAI endpoint.
 
 ---
 
@@ -59,21 +60,21 @@ cp .env.example .env
 
 | Переменная | Обязательно | Описание |
 |------------|-------------|----------|
-| `OPENAI_API_KEY` | да | Ключ API провайдера |
+| `OPENAI_API_KEY` | да | Ключ API провайдера (секрет) |
 | `ADMIN_TOKEN` | для `/admin` | Токен доступа к админке (HTTP Basic, пользователь `admin`) |
-| `OPENAI_MODEL` | нет (умолч. `gpt-5-mini`) | Модель; меняется в runtime через `/admin` |
-| `OPENAI_BASE_URL` | нет (умолч. OpenAI) | Endpoint провайдера; меняется в runtime |
-| `ASSISTANT_SPECIALIZATION` | нет | Специализация в промпте; меняется в runtime |
-| `STRUCTURED_OUTPUT` | нет (умолч. `true`) | Строгий контракт ответа; меняется в runtime |
-| `MAX_FILE_SIZE` | нет (умолч. `10MB`) | Лимит файла; меняется в runtime |
-| `OPENAI_MAX_HISTORY_MESSAGES` | нет (умолч. `8`) | Сообщений истории; меняется в runtime |
-| `PROVIDER_NAME` | нет | Имя провайдера в контенте (пусто = нейтрально); runtime |
-| `APP_PORT` | нет (умолч. `8000`) | Порт хоста |
+| `APP_PORT` | нет (умолч. `8000`) | Порт хоста (только dev-режим с публикацией порта) |
 | `APP_HOST` | нет (умолч. `0.0.0.0`) | Хост |
+| `LOG_LEVEL` | нет (умолч. `INFO`) | Уровень логирования |
 
 Полный список с комментариями — в [`.env.example`](../.env.example).
 
-> Параметры с пометкой «меняется в runtime» имеют в `.env` только значение по умолчанию; их можно менять через `/admin` без рестарта (см. [`OPERATOR_GUIDE.md`](OPERATOR_GUIDE.md)).
+> **В `.env` живут только секреты и bootstrap** (хост/порт, логирование, пути к
+> каталогам, `RUNTIME_CONFIG_PATH`). Операторские параметры (модель, endpoint,
+> специализация, температура, лимиты файла и др.) единственным источником
+> истины имеют `storage/config.json` — начальные значения сеются из хардкоженных
+> умолчаний при первом старте, дальше оператор правит их через `/admin` или
+> файлом **без рестарта** (см. [`OPERATOR_GUIDE.md`](OPERATOR_GUIDE.md)). В `.env`
+> операторских параметров НЕТ — это намеренно (одна точка правки).
 
 ---
 
@@ -296,11 +297,11 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ### Runtime-параметры без рестарта
 
-Операторские параметры меняются через `/admin` (см. [`OPERATOR_GUIDE.md`](OPERATOR_GUIDE.md)) или прямым редактированием `storage/config.json` — применяются на следующем запросе. **Пересборка и рестарт не требуются.**
+Операторские параметры (модель, endpoint, специализация, температура, лимиты файла и др.) меняются через `/admin` (см. [`OPERATOR_GUIDE.md`](OPERATOR_GUIDE.md)) или прямым редактированием `storage/config.json` — применяются на следующем запросе. **Пересборка и рестарт не требуются.** `storage/config.json` — единственный источник истины этих параметров; начальные значения сеются из хардкоженных умолчаний при первом старте.
 
 ### Bootstrap-параметры (требуют рестарт)
 
-`OPENAI_API_KEY`, `ADMIN_TOKEN`, `APP_HOST`, `APP_PORT`, пути к каталогам, `RUNTIME_CONFIG_PATH` — меняются в `.env` с последующим `docker compose up -d` (production) или рестартом.
+`OPENAI_API_KEY`, `ADMIN_TOKEN`, `APP_HOST`, `APP_PORT`, `LOG_LEVEL`, пути к каталогам, `PROMPTS_DIR`, `RUNTIME_CONFIG_PATH` — меняются в `.env` с последующим `docker compose up -d` (production) или рестартом. Операторских параметров в `.env` нет.
 
 ---
 
@@ -311,11 +312,17 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 | `storage/uploads/` | Загруженные файлы + метаданные | нет (создаётся при старте) | `./storage:/app/storage` |
 | `storage/outputs/` | Графики (PNG), отчёты (DOCX) | нет | volume |
 | `storage/chats/` | Разговоры (JSON) | нет | volume |
-| `storage/config.json` | Runtime-конфиг оператора | нет | volume |
-| `prompts/` | Версионированные промпты | да (production) / mount (dev) | — |
+| `storage/config.json` | Runtime-конфиг оператора (единственный SOT параметров) | нет | volume |
+| `prompts/` | Версионированные промпты (единый SOT системного промпта) | да (в образе) + mount | `./prompts:/app/prompts` |
 | `.env` | Секреты и bootstrap | **нет** (`.dockerignore`) | `env_file` (runtime injection) |
 
 > `.env` не попадает в образ (см. `.dockerignore`). Секреты инъектируются через `env_file` при запуске контейнера.
+>
+> `prompts/` монтируется в production поверх образа: правка системного промпта
+> через `/admin` (POST `/admin/prompt` пишет в `prompts/v1/system.md`) переживает
+> рестарт/пересборку. Каталог `prompts/` лежит в репозитории — `git pull` может
+> перезаписать операторские правки промпта; коммитьте их обратно или
+> резервируйте файл перед обновлением.
 
 ---
 

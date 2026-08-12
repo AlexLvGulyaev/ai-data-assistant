@@ -13,6 +13,7 @@ from app.routes.chat import router as chat_router
 from app.routes.pages import router as pages_router
 from app.routes.upload import router as upload_router
 from app.services.file_service import FileService
+from app.services.runtime_config import RuntimeConfig
 
 
 settings = get_settings()
@@ -22,6 +23,10 @@ settings = get_settings()
 async def lifespan(_: FastAPI):
     configure_logging()
     FileService(settings).ensure_storage()
+    # Засеять config.json дефолтами из DEFAULTS при первом старте — это делает
+    # storage/config.json единым SOT операторских параметров (без дублирования
+    # в .env). Идемпотентно: существующие ключи не трогаются.
+    RuntimeConfig(settings).ensure_initialized()
     yield
 
 

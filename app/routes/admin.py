@@ -11,6 +11,7 @@ from starlette.exceptions import HTTPException
 
 from app.core.config import get_settings
 from app.services.ai_service import AIService
+from app.services.prompt_loader import PromptLoader
 from app.services.runtime_config import RUNTIME_KEYS, RuntimeConfig
 from app.services.usage_service import UsageService
 
@@ -24,6 +25,9 @@ templates = Jinja2Templates(directory=str(settings.templates_dir))
 # file_service) держат свои экземпляры, но все читают один и тот же JSON-файл
 # через mtime-кеш — запись здесь видна им на следующем запросе без рестарта.
 runtime = RuntimeConfig(settings)
+# PromptLoader — для редактора системного промпта: читает/пишет файл
+# prompts/v1/system.md (единый SOT текста промпта).
+prompt_loader = PromptLoader(settings)
 # ai_service для диагностического теста провайдера и usage_service для dashboard
 # статистики — каждый читает/пишет свои файлы в storage/ (общие с экземплярами
 # в pages.py через mtime-кеш).
@@ -42,12 +46,6 @@ PARAM_META: dict[str, dict[str, Any]] = {
         "label": "Специализация ассистента",
         "hint": "Роль/профиль ассистента в системном промпте. Применяется на следующем запросе.",
         "kind": "text",
-    },
-    "system_prompt_override": {
-        "label": "Системный промпт (override)",
-        "hint": "Переопределяет файл prompts/v1/system.md. Доступны переменные {{specialization}} и {{provider_attribution}}. Применяется на следующем запросе. Сброс — снова используется файл.",
-        "kind": "textarea",
-        "placeholder": "(пусто = используется файл prompts/v1/system.md)",
     },
     "provider_name": {
         "label": "Имя провайдера (для промпта)",
@@ -72,7 +70,7 @@ PARAM_META: dict[str, dict[str, Any]] = {
     },
     "openai_temperature": {
         "label": "Температура модели",
-        "hint": "Креативность 0–2. 0 — детерминированнее. Отправляется в каждом запросе.",
+        "hint": "Креативность 0–2. Отправляется ТОЛЬКО если явно задана (не сброшена) — иначе провайдер использует умолчание. Важно: gpt-5-mini и ряд моделей принимают только умолчательную температуру.",
         "kind": "float",
     },
     "openai_seed": {
@@ -153,6 +151,8 @@ async def admin_panel(request: Request, _: None = Depends(_require_admin)):
         "page_title": "Админка оператора | Data Assistant",
         "params": _ordered_params(),
         "runtime_config_path": str(runtime.path),
+        "prompt_text": prompt_loader.read_system_prompt_raw(),
+        "prompt_path": str(prompt_loader.system_prompt_path()),
         "usage": usage_service.as_dict(),
         "usage_path": str(usage_service.path),
         "admin_enabled": True,
@@ -188,6 +188,40 @@ async def admin_test_provider(request: Request, _: None = Depends(_require_admin
             "request": request,
             "status_message": message,
             "status_kind": status_kind,
+        },
+    )
+
+
+@router.post("/prompt", response_class=HTMLResponse)
+async def admin_save_prompt(
+    request: Request,
+    content: str = Form(...),
+    _: None = Depends(_require_admin),
+):
+    """Сохранить системный промпт в файл prompts/v1/system.md (единый SOT).
+
+    Запись идёт напрямую в файл-источник истины (не в config.json).
+    Применяется на следующем запросе через mtime-кеш PromptLoader'а.
+    """
+    try:
+        prompt_loader.write_system_prompt(content)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Admin prompt save failed: %s", exc)
+        return templates.TemplateResponse(
+            "partials/admin_status.html",
+            {
+                "request": request,
+                "status_message": f"Ошибка сохранения промпта: {exc}",
+                "status_kind": "error",
+            },
+        )
+    return templates.TemplateResponse(
+        "partials/admin_status.html",
+        {
+            "request": request,
+            "status_message": "Системный промпт сохранён. Применится на следующем запросе без рестарта.",
+            "status_kind": "ok",
+            "updated_key": "__prompt__",
         },
     )
 

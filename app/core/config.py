@@ -4,7 +4,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, computed_field, model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,15 +25,19 @@ def parse_size_to_bytes(raw_value: str) -> int:
 
 
 class Settings(BaseSettings):
-    """Конфигурация приложения.
+    """Конфигурация приложения — ТОЛЬКО секреты и bootstrap.
 
-    Bootstrap-параметры (стартовые, замораживаются при старте процесса):
-    хост/порт, пути к каталогам, источник runtime-конфига, ключ и endpoint
-    провайдера модели, каталог промптов. Операторские параметры, которые
-    предполагается менять в runtime без рестарта (специализация, модель,
-    лимиты, дефолты графиков), читаются из runtime-config provider'а
-    (см. app/services/runtime_config.py) — здесь хранятся только их значения
-    по умолчанию.
+    Здесь живут только параметры, которыми реально управляет окружение
+    процесса (`.env`): секреты (OPENAI_API_KEY, ADMIN_TOKEN) и bootstrap
+    (хост/порт, логирование, пути к каталогам, путь к runtime-конфигу).
+    Все они требуют рестарта процесса при смене.
+
+    Операторские параметры (специализация, модель, endpoint, температура,
+    лимиты файла и т.п.) единственным источником истины имеют
+    `storage/config.json` (см. app/services/runtime_config.py): начальные
+    значения сеются из хардкоженного DEFAULTS при первом старте, дальше
+    оператор правит их через `/admin` или файлом — без рестарта. В `.env`
+    операторских параметров НЕТ — это намеренно (одна точка правки).
     """
 
     model_config = SettingsConfigDict(
@@ -44,64 +48,38 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # --- Базовые настройки приложения ---
+    # --- Базовые настройки приложения (bootstrap) ---
     app_name: str = Field(default="Data Assistant", alias="APP_NAME")
     app_host: str = Field(default="0.0.0.0", alias="APP_HOST")
     app_port: int = Field(default=8000, alias="APP_PORT")
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
-    # --- Хранилища и пути ---
-    max_file_size: str = Field(default="10MB", alias="MAX_FILE_SIZE")
+    # --- Хранилища и пути (bootstrap) ---
     upload_dir: Path = Field(default=Path("storage/uploads"), alias="UPLOAD_DIR")
     output_dir: Path = Field(default=Path("storage/outputs"), alias="OUTPUT_DIR")
     storage_dir: Path = Field(default=Path("storage"), alias="STORAGE_DIR")
     templates_dir: Path = Field(default=Path("templates"), alias="TEMPLATES_DIR")
     static_dir: Path = Field(default=Path("static"), alias="STATIC_DIR")
 
-    # --- Логирование ---
-    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
-
-    # --- Провайдер модели (B: base_url -> портабельность) ---
-    # Поля названы openai_* для совместимости с env, но провайдер может быть
-    # любым совместимым (GigaChat, YandexGPT, Gemini и т.п.) через OPENAI_BASE_URL.
-    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
-    openai_model: str = Field(default="gpt-5-mini", alias="OPENAI_MODEL")
-    openai_base_url: str = Field(default="https://api.openai.com/v1", alias="OPENAI_BASE_URL")
-    openai_max_history_messages: int = Field(default=8, alias="OPENAI_MAX_HISTORY_MESSAGES")
-    # Температура и seed модели. Температура — креативность (0 = детерминированнее),
-    # seed — воспроизводимость (поддерживают не все провайдеры; None = не отправлять).
-    openai_temperature: float = Field(default=0.0, alias="OPENAI_TEMPERATURE")
-    openai_seed: int | None = Field(default=None, alias="OPENAI_SEED")
-    # Отображаемое имя провайдера для промпта/greeting. None = нейтрально
-    # (без упоминания провайдера в контенте), что корректно для любого провайдера.
-    provider_name: str | None = Field(default=None, alias="PROVIDER_NAME")
-    # Structured output через json_schema. True для провайдеров, поддерживающих
-    # OpenAI-style structured output (OpenAI, совместимые). Для провайдеров без
-    # поддержки (некоторые альтернативы) оператор выставляет False — тогда запрос
-    # уходит без response_format, а ответ парсится устойчивым парсером.
-    structured_output: bool = Field(default=True, alias="STRUCTURED_OUTPUT")
-
-    # --- Промпты и специализация (A: промпт в версионированный файл) ---
+    # --- Промпты (bootstrap): каталог версионированных промптов ---
+    # Сам системный промпт — файл prompts/v1/system.md — единственный SOT
+    # текста промпта; оператор правит его напрямую (через `/admin` или файлом).
     prompts_dir: Path = Field(default=Path("prompts"), alias="PROMPTS_DIR")
-    assistant_specialization: str = Field(
-        default="AI Data Assistant — аналитик данных общего профиля",
-        alias="ASSISTANT_SPECIALIZATION",
-    )
 
-    # --- Runtime-config (вариант 3: операторские параметры без рестарта) ---
+    # --- Runtime-config (bootstrap): путь к JSON операторских параметров ---
     runtime_config_path: Path = Field(
         default=Path("storage/config.json"), alias="RUNTIME_CONFIG_PATH"
     )
 
-    # --- Админка оператора (вариант 3) ---
+    # --- Секреты (только .env, рестарт) ---
+    # Поля названы openai_* для совместимости с env, но провайдер может быть
+    # любым совместимым (GigaChat, YandexGPT, Gemini и т.п.) — endpoint/model
+    # задаются оператором в runtime-конфиге, здесь — только секрет.
+    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
     # Токен доступа к /admin. None — админка отключена (403). Передаётся через
     # HTTP Basic (пользователь `admin`, пароль = токен) — браузер сам держит
     # сессию, отдельная страница логина не нужна.
     admin_token: str | None = Field(default=None, alias="ADMIN_TOKEN")
-
-    @computed_field  # type: ignore[misc]
-    @property
-    def max_file_size_bytes(self) -> int:
-        return parse_size_to_bytes(self.max_file_size)
 
     @model_validator(mode="after")
     def _resolve_paths(self) -> "Settings":

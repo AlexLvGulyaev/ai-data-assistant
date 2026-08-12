@@ -46,12 +46,13 @@ class AIService:
     Портабельный (B): использует Chat Completions API и `OPENAI_BASE_URL`,
     поэтому провайдером может быть любой совместимый (OpenAI, GigaChat,
     YandexGPT, Gemini и т.п.). Промпт (A) грузится из версионированного файла
-    через `PromptLoader` — правка применяется в runtime без рестарта. Контракт
-    ответа (F) — structured output через json_schema; схема генерируется из
-    реестров `ACTION_TYPES`/`CHART_TYPES` (D, E) — единый источник истины, AI не
-    может вернуть действие/график, который приложение не умеет исполнять. Для
-    провайдеров без structured output оператор отключает `STRUCTURED_OUTPUT`, и
-    ответ парсится устойчивым парсером.
+    через `PromptLoader` — единый SOT текста промпта, правка применяется в
+    runtime без рестарта. Контракт ответа (F) — structured output через
+    json_schema; схема генерируется из реестров `ACTION_TYPES`/`CHART_TYPES`
+    (D, E) — единый источник истины, AI не может вернуть действие/график,
+    который приложение не умеет исполнять. Для провайдеров без structured
+    output оператор отключает `STRUCTURED_OUTPUT`, и ответ парсится устойчивым
+    парсером.
     """
 
     def __init__(
@@ -62,9 +63,9 @@ class AIService:
         self.settings = settings or get_settings()
         self._client = None
         self._runtime = RuntimeConfig(self.settings)
-        # PromptLoader делится тем же экземпляром RuntimeConfig — override промпта
-        # (system_prompt_override) читается из одного config.json.
-        self._prompt_loader = PromptLoader(self.settings, runtime=self._runtime)
+        # PromptLoader читает сам файл промпта (единственный SOT); runtime-конфиг
+        # держит только операторские параметры для интерполяции шаблона.
+        self._prompt_loader = PromptLoader(self.settings)
         self._usage = usage_service
         self._client_base_url: str | None = None
 
