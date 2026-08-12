@@ -288,8 +288,7 @@ async def admin_apply_preset(
         {
             "request": request,
             "provider_status_message": (
-                f"Применён пресет «{label}». Endpoint, модель, имя и "
-                f"structured_output обновлены. Применится на следующем запросе."
+                f"Применён пресет «{label}». Применится на следующем запросе."
             ),
             "provider_status_kind": "ok",
             **_provider_section_context(),

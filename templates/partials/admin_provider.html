@@ -11,13 +11,6 @@
         <span class="admin-card__key">provider · {{ provider }}</span>
     </header>
 
-    {% if provider_status_message %}
-    <div class="admin-status admin-status--{{ provider_status_kind }}">
-        <span class="admin-status__icon">{{ '✓' if provider_status_kind == 'ok' else '✕' }}</span>
-        <span>{{ provider_status_message }}</span>
-    </div>
-    {% endif %}
-
     <div class="admin-presets">
         <form class="admin-presets__form"
               hx-post="/admin/provider"
@@ -46,3 +39,9 @@
                 hx-disabled-elt="this">Тест провайдера</button>
     </div>
 </section>
+
+{% if provider_status_message %}
+{% set status_message = provider_status_message %}
+{% set status_kind = provider_status_kind or 'ok' %}
+<div id="admin-status" hx-swap-oob="outerHTML">{% include "partials/admin_status.html" %}</div>
+{% endif %}

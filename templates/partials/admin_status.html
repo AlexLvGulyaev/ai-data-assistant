@@ -2,24 +2,17 @@
     <span class="admin-status__icon">{{ '✓' if status_kind == 'ok' else '✕' }}</span>
     <span>{{ status_message }}</span>
 </div>
-{% if updated_key %}
 <script>
-    // Обновляем отображение текущего значения карточки без перезагрузки страницы.
+    // Toast: авто-скрытие через 5с. Статус показывается всплывающим уведомлением
+    // (фиксированная позиция, вне потока), а не занимает вертикальное место в админке.
     (function () {
-        var el = document.getElementById('current-{{ updated_key }}');
-        if (el) {
-            el.innerHTML = 'Текущее значение: <strong>{{ updated_display }}</strong>';
-        }
-        // Для сброса — очищаем поле ввода к умолчанию.
-        {% if reset_key %}
-        var card = document.getElementById('card-{{ reset_key }}');
-        if (card) {
-            var input = card.querySelector('.admin-input');
-            if (input && input.type !== 'select-one') {
-                // оставляем как есть; отображение уже обновлено выше
-            }
-        }
-        {% endif %}
+        var t = document.querySelector('#admin-status > .admin-status');
+        if (!t) return;
+        setTimeout(function () {
+            t.style.transition = 'opacity .3s ease, transform .3s ease';
+            t.style.opacity = '0';
+            t.style.transform = 'translateY(8px)';
+            setTimeout(function () { if (t.parentNode) t.remove(); }, 320);
+        }, 5000);
     })();
 </script>
-{% endif %}

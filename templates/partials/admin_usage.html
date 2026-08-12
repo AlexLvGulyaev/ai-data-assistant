@@ -1,7 +1,11 @@
 {% if usage %}
 <section class="admin-usage" aria-label="Статистика использования модели">
     <header class="admin-usage__head">
-        <h2>Статистика использования</h2>
+        <h2 class="admin-tooltip">
+            Статистика использования
+            <span class="admin-tooltip__text">Обновляется при перезагрузке страницы. Источник: {{ usage_path }}.
+            Диагностический «Тест провайдера» и локальные действия (без модели) сюда не записываются.</span>
+        </h2>
         <span class="admin-badge">usage</span>
     </header>
     <div class="admin-usage__grid">
@@ -19,11 +23,11 @@
         </div>
         <div class="usage-stat">
             <span class="usage-stat__value">{{ usage.total_prompt_tokens }}</span>
-            <span class="usage-stat__label">Промпт-токены</span>
+            <span class="usage-stat__label">Промпт</span>
         </div>
         <div class="usage-stat">
             <span class="usage-stat__value">{{ usage.total_completion_tokens }}</span>
-            <span class="usage-stat__label">Комплит-токены</span>
+            <span class="usage-stat__label">Комплит</span>
         </div>
     </div>
     <dl class="admin-usage__meta">
@@ -33,9 +37,5 @@
         <div class="admin-usage__error"><dt>Текст ошибки</dt><dd>{{ usage.last_error_message }}</dd></div>
         {% endif %}
     </dl>
-    <p class="admin-usage__note">
-        Обновляется при перезагрузке страницы. Источник: <code>{{ usage_path }}</code>.
-        Диагностический «Тест провайдера» сюда не записывается.
-    </p>
 </section>
 {% endif %}

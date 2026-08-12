@@ -769,27 +769,34 @@ button,
        полей. Теперь боковые отступы минимальны. */
     max-width: none;
     margin: 0;
-    padding: 1.5rem 0.5rem 3rem;
+    padding: 0.5rem 0.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 4rem);
 }
 
 .admin-head {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 0.6rem;
 }
 
 .admin-head h1 {
-    margin: 0 0 0.35rem;
-    font-size: 1.5rem;
+    margin: 0;
+    font-size: 1.15rem;
+    line-height: 1.2;
 }
 
 .admin-sub {
     margin: 0;
     color: var(--muted);
-    max-width: 60ch;
-    line-height: 1.5;
+    font-size: 0.82rem;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .admin-badge {
@@ -806,19 +813,19 @@ button,
 
 .admin-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 1.1rem;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.6rem;
 }
 
 .admin-card {
     background: var(--panel-strong);
     border: 1px solid var(--line);
-    border-radius: 22px;
-    padding: 1.2rem 1.25rem 1.1rem;
+    border-radius: 16px;
+    padding: 0.7rem 0.85rem 0.7rem;
     box-shadow: var(--shadow);
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    gap: 0.4rem;
 }
 
 .admin-card__head {
@@ -830,48 +837,57 @@ button,
 
 .admin-card__head h2 {
     margin: 0;
-    font-size: 1.02rem;
+    font-size: 0.95rem;
 }
 
 .admin-card__key {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     color: var(--muted);
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     background: rgba(31, 40, 51, 0.05);
-    padding: 0.15rem 0.45rem;
-    border-radius: 6px;
+    padding: 0.1rem 0.4rem;
+    border-radius: 5px;
 }
 
 .admin-card__hint {
     margin: 0;
-    font-size: 0.84rem;
+    font-size: 0.8rem;
     color: var(--muted);
-    line-height: 1.45;
-}
-
-.admin-card__current {
-    font-size: 0.88rem;
-    color: var(--ink);
-}
-
-.admin-card__current strong {
-    color: var(--accent-strong);
+    line-height: 1.4;
 }
 
 .admin-form {
     display: flex;
     flex-direction: column;
-    gap: 0.7rem;
-    margin-top: 0.2rem;
+    gap: 0.5rem;
+    margin-top: 0.1rem;
+}
+
+/* Инлайн-форма карточки параметра: поле + Сохранить + Сброс в одну строку. */
+.admin-form--inline {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0;
+}
+
+.admin-form--inline .admin-input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.admin-form--inline .admin-form__actions {
+    flex: 0 0 auto;
 }
 
 .admin-input {
     width: 100%;
-    padding: 0.7rem 0.85rem;
+    padding: 0.45rem 0.6rem;
     border: 1px solid rgba(28, 92, 120, 0.16);
-    border-radius: 14px;
+    border-radius: 10px;
     background: white;
     outline: none;
+    font-size: 0.86rem;
 }
 
 .admin-input:focus {
@@ -880,25 +896,47 @@ button,
 
 .admin-form__actions {
     display: flex;
-    gap: 0.6rem;
+    gap: 0.4rem;
 }
 
 .admin-form__actions .primary-btn,
 .admin-form__actions .ghost-btn {
     flex: 1;
-    padding: 0.6rem 0.8rem;
-    font-size: 0.88rem;
+    padding: 0.45rem 0.7rem;
+    font-size: 0.82rem;
+}
+
+.admin-form--inline .admin-form__actions .primary-btn,
+.admin-form--inline .admin-form__actions .ghost-btn {
+    flex: 0 0 auto;
+    padding: 0.45rem 0.6rem;
+}
+
+/* Toast-уведомление статуса: фиксированная позиция, вне потока —
+   не крадёт вертикальное место в админке. */
+#admin-status {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 1100;
+    max-width: min(460px, 92vw);
+    pointer-events: none;
+}
+
+#admin-status .admin-status {
+    pointer-events: auto;
 }
 
 .admin-status {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    padding: 0.8rem 1rem;
-    border-radius: 14px;
-    margin-bottom: 1.2rem;
-    font-size: 0.9rem;
-    line-height: 1.4;
+    gap: 0.5rem;
+    padding: 0.55rem 0.85rem;
+    border-radius: 12px;
+    margin: 0;
+    font-size: 0.84rem;
+    line-height: 1.35;
+    box-shadow: 0 8px 24px rgba(31, 40, 51, 0.22);
 }
 
 .admin-status--ok {
@@ -915,44 +953,44 @@ button,
 
 .admin-status__icon {
     font-weight: 700;
-    font-size: 1rem;
+    font-size: 0.95rem;
 }
 
-/* Textarea-инпут для override промпта */
+/* Textarea-инпут для системного промпта — растягивается в высоту колонки. */
 .admin-input--textarea {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 0.85rem;
     line-height: 1.45;
     resize: vertical;
-    min-height: 140px;
+    min-height: 240px;
 }
 
 /* Dashboard статистики использования */
 .admin-usage {
     border: 1px solid rgba(28, 92, 120, 0.16);
-    border-radius: 18px;
-    padding: 1rem 1.2rem 1.1rem;
-    margin-bottom: 1.2rem;
+    border-radius: 14px;
+    padding: 0.55rem 0.8rem 0.6rem;
+    margin-bottom: 0.7rem;
     background: rgba(28, 92, 120, 0.04);
 }
 
 .admin-usage__head {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    margin-bottom: 0.8rem;
+    gap: 0.5rem;
+    margin-bottom: 0.45rem;
 }
 
 .admin-usage__head h2 {
     margin: 0;
-    font-size: 1rem;
+    font-size: 0.92rem;
 }
 
 .admin-usage__grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-    gap: 0.6rem;
-    margin-bottom: 0.8rem;
+    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+    gap: 0.4rem;
+    margin-bottom: 0.45rem;
 }
 
 .usage-stat {
@@ -960,39 +998,43 @@ button,
     flex-direction: column;
     align-items: center;
     background: white;
-    border-radius: 12px;
-    padding: 0.6rem 0.4rem;
+    border-radius: 10px;
+    padding: 0.3rem 0.3rem;
     border: 1px solid rgba(28, 92, 120, 0.1);
 }
 
 .usage-stat__value {
-    font-size: 1.35rem;
+    font-size: 1.1rem;
     font-weight: 700;
     color: var(--accent);
     font-variant-numeric: tabular-nums;
+    line-height: 1.1;
 }
 
 .usage-stat__label {
-    font-size: 0.74rem;
+    font-size: 0.68rem;
     color: var(--muted, #6b7280);
-    margin-top: 0.15rem;
+    margin-top: 0.1rem;
 }
 
+/* Метаданные — в одну строку (Последний запрос / Последняя ошибка),
+   текст ошибки переносится ниже. */
 .admin-usage__meta {
-    display: grid;
-    gap: 0.25rem;
-    margin: 0 0 0.6rem;
-    font-size: 0.82rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.15rem 1.2rem;
+    margin: 0;
+    font-size: 0.78rem;
 }
 
 .admin-usage__meta div {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.4rem;
 }
 
 .admin-usage__meta dt {
     color: var(--muted, #6b7280);
-    min-width: 130px;
+    min-width: 0;
 }
 
 .admin-usage__meta dd {
@@ -1004,24 +1046,18 @@ button,
     color: #b43c3c;
 }
 
-.admin-usage__note {
-    font-size: 0.76rem;
-    color: var(--muted, #6b7280);
-    margin: 0;
-}
-
 /* Кнопка теста провайдера в футере админки */
 .admin-foot__actions {
     margin-bottom: 0.8rem;
 }
 
 .admin-foot {
-    margin-top: 2rem;
-    padding-top: 1.2rem;
+    margin-top: 0.8rem;
+    padding-top: 0.7rem;
     border-top: 1px solid var(--line);
     color: var(--muted);
-    font-size: 0.82rem;
-    line-height: 1.5;
+    font-size: 0.78rem;
+    line-height: 1.4;
 }
 
 .admin-foot code {
@@ -1034,7 +1070,7 @@ button,
 }
 
 .admin-foot__note {
-    margin-top: 0.4rem;
+    margin-top: 0.3rem;
 }
 
 /* ============================================================
@@ -1042,33 +1078,46 @@ button,
    ============================================================ */
 
 /* Две колонки: слева — системный промпт (ядро, во всю высоту),
-   справа — управления (провайдер + операторские параметры + футер). */
+   справа — управления (провайдер + операторские параметры + футер).
+   Layout растягивается на всю высоту оболочки — промпт-карточка
+   заполняет колонку, textarea тянется до нижней границы экрана. */
 .admin-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1.25fr) minmax(440px, 1fr);
-    gap: 1.2rem;
-    align-items: start;
+    grid-template-columns: minmax(0, 1.25fr) minmax(420px, 1fr);
+    gap: 0.8rem;
+    align-items: stretch;
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .admin-layout__main {
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .admin-layout__side {
     display: flex;
     flex-direction: column;
-    gap: 1.1rem;
+    gap: 0.7rem;
     min-width: 0;
 }
 
-/* Промпт-карточка занимает левую колонку целиком. */
+/* Промпт-карточка занимает левую колонку целиком и тянется в высоту. */
 .admin-card--prompt {
-    height: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.admin-card--prompt .admin-form {
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .admin-card--prompt .admin-input--textarea {
-    min-height: 360px;
-    flex: 1;
+    flex: 1 1 auto;
+    min-height: 280px;
 }
 
 /* Тултип на лейбле параметра (чистый CSS, паттерн AI Curator).
@@ -1121,44 +1170,40 @@ button,
 
 /* Компактные карточки параметров (сетка операторских параметров). */
 .admin-card--param {
-    padding: 0.85rem 0.95rem 0.8rem;
-    gap: 0.45rem;
+    padding: 0.5rem 0.7rem 0.55rem;
+    gap: 0.35rem;
 }
 
 .admin-card--param .admin-card__head h2 {
-    font-size: 0.92rem;
-}
-
-.admin-card--param .admin-card__current {
-    font-size: 0.8rem;
+    font-size: 0.88rem;
 }
 
 .admin-card--param .admin-input {
-    padding: 0.5rem 0.7rem;
-    font-size: 0.86rem;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.84rem;
 }
 
 .admin-card--param .admin-form__actions .primary-btn,
 .admin-card--param .admin-form__actions .ghost-btn {
-    padding: 0.45rem 0.6rem;
-    font-size: 0.8rem;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.78rem;
 }
 
 /* Сетка операторских параметров — компактная (2+ колонок). */
 .admin-layout__side .admin-grid {
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-    gap: 0.8rem;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.5rem;
 }
 
 /* Секция «Провайдер». */
 .admin-card--provider {
-    gap: 0.7rem;
+    gap: 0.5rem;
 }
 
 .admin-provider-fields {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 0.8rem;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.5rem;
 }
 
 /* Чипы пресетов провайдера. */
@@ -1200,23 +1245,38 @@ button,
     margin-top: 0.2rem;
 }
 
-/* Статистика-полоса: делаем компактнее в верхней части. */
-.admin-usage {
-    margin-bottom: 1.2rem;
-}
-
 @media (max-width: 980px) {
     .admin-layout {
         grid-template-columns: 1fr;
+    }
+    /* На узком экране промпт-карточка не должна отжирать всю высоту —
+       задаём разумную минимальную высоту, остальное идёт обычным скроллом. */
+    .admin-card--prompt {
+        flex: 0 0 auto;
+    }
+    .admin-card--prompt .admin-input--textarea {
+        min-height: 220px;
     }
 }
 
 @media (max-width: 560px) {
     .admin-head {
         flex-direction: column;
+        align-items: flex-start;
     }
-    .admin-form__actions {
+    .admin-sub {
+        white-space: normal;
+    }
+    .admin-form--inline {
         flex-direction: column;
+        align-items: stretch;
+    }
+    .admin-form--inline .admin-form__actions {
+        justify-content: stretch;
+    }
+    .admin-form--inline .admin-form__actions .primary-btn,
+    .admin-form--inline .admin-form__actions .ghost-btn {
+        flex: 1;
     }
     .admin-provider-fields,
     .admin-layout__side .admin-grid {
@@ -1274,6 +1334,19 @@ button,
         min-width: 0;
         height: 100%;
         overflow-y: auto;
+        padding-right: 4px;
+    }
+    /* Админка на широком экране: оболочка заполняет viewport, левая колонка
+       (промпт) тянется до нижней границы, правая колонка скроллится
+       самостоятельно — параметры не выталкивают промпт за экран. */
+    .admin-shell {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+    }
+    .admin-layout__side {
+        overflow-y: auto;
+        min-height: 0;
         padding-right: 4px;
     }
 }
