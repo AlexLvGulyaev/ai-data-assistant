@@ -153,7 +153,6 @@ flowchart TB
 | [💼 `docs/BUSINESS_VALUE.md`](docs/BUSINESS_VALUE.md) | Бизнес-проблема, решение, эффект, выгода |
 | [🎬 `docs/E2E_SCENARIOS.md`](docs/E2E_SCENARIOS.md) | Сквозные бизнес-сценарии (чат + админка) |
 | [🖼️ `docs/SCREENSHOTS.md`](docs/SCREENSHOTS.md) | Галерея экранов с подписями |
-| [📊 `docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md) | Паспорт состояния проекта |
 
 ### Для пользователей и операторов
 
@@ -173,6 +172,7 @@ flowchart TB
 | [🤖 `docs/EXTERNAL_PROVIDERS.md`](docs/EXTERNAL_PROVIDERS.md) | Параметры OpenAI-совместимых провайдеров |
 | [🧪 `docs/TESTING.md`](docs/TESTING.md) | Стратегия тестирования |
 | [📋 `docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | План реализации |
+| [📊 `docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md) | Текущее состояние и roadmap |
 | [🚀 `docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md) | Воспроизводимое развёртывание (Source of Truth) |
 | [✅ `docs/DEPLOYMENT_VALIDATION_REPORT.md`](docs/DEPLOYMENT_VALIDATION_REPORT.md) | Отчёт валидации в чистом окружении |
 
@@ -260,7 +260,7 @@ ai-data-assistant/
 │   ├── IMPLEMENTATION_PLAN.md     # План реализации
 │   ├── DEPLOYMENT_GUIDE.md        # Развёртывание с нуля
 │   ├── DEPLOYMENT_VALIDATION_REPORT.md  # Отчёт валидации
-│   ├── PROJECT_STATE.md           # Паспорт состояния
+│   ├── PROJECT_STATE.md           # Текущее состояние и roadmap
 │   ├── SECURITY_NOTES.md          # Безопасность
 │   └── screenshots/               # Скриншоты интерфейса
 ├── app/                           # Backend (FastAPI)
