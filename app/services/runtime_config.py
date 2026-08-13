@@ -159,6 +159,15 @@ class RuntimeConfig:
         logger.info("Runtime config updated: %s", key)
         return coerced
 
+    def coerce(self, key: str, value: Any) -> Any:
+        """Только coercion/валидация, без записи. Нужно для «сухого» прохода
+        перед единым сохранением всех настроек: сначала валидируем все поля,
+        и лишь если все прошли — пишем. Исключает частичную запись при ошибке
+        в одном из параметров."""
+        if key not in RUNTIME_KEYS:
+            raise KeyError(f"Unknown runtime config key: {key}")
+        return self._coerce(key, value)
+
     def reset(self, key: str) -> Any:
         """Удалить ключ из config.json — параметр вернётся к умолчанию из DEFAULTS.
 

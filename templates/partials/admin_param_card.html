@@ -7,41 +7,24 @@
         <span class="admin-card__key">{{ param.key }}</span>
     </header>
 
-    <form class="admin-form admin-form--inline"
-          hx-post="/admin/update"
-          hx-target="#admin-status"
-          hx-swap="innerHTML"
-          hx-disabled-elt="button[data-key='{{ param.key }}']">
-        <input type="hidden" name="key" value="{{ param.key }}">
-
-        {% if param.kind == "bool" %}
-        <select name="value" class="admin-input">
-            <option value="true" {% if param.value == true %}selected{% endif %}>Вкл</option>
-            <option value="false" {% if param.value == false %}selected{% endif %}>Выкл</option>
-        </select>
-        {% elif param.kind == "int" %}
-        <input type="number" name="value" class="admin-input"
-               value="{{ param.value if param.value is not none else '' }}"
-               min="0" step="1"
-               placeholder="{{ param.placeholder or '' }}">
-        {% elif param.kind == "float" %}
-        <input type="number" name="value" class="admin-input"
-               value="{{ '' if param.value is none else param.value }}"
-               min="0" max="2" step="0.1"
-               placeholder="{{ param.placeholder or '' }}">
-        {% else %}
-        <input type="text" name="value" class="admin-input"
-               value="{{ '' if param.value is none else param.value }}"
-               placeholder="{{ param.placeholder or '' }}">
-        {% endif %}
-
-        <div class="admin-form__actions">
-            <button type="submit" class="primary-btn" data-key="{{ param.key }}">Сохранить</button>
-            <button type="button" class="ghost-btn"
-                    hx-post="/admin/reset"
-                    hx-vals='{"key": "{{ param.key }}"}'
-                    hx-target="#admin-status"
-                    hx-swap="innerHTML">Сброс</button>
-        </div>
-    </form>
+    {% if param.kind == "bool" %}
+    <select name="{{ param.key }}" class="admin-input">
+        <option value="true" {% if param.value == true %}selected{% endif %}>Вкл</option>
+        <option value="false" {% if param.value == false %}selected{% endif %}>Выкл</option>
+    </select>
+    {% elif param.kind == "int" %}
+    <input type="number" name="{{ param.key }}" class="admin-input"
+           value="{{ param.value if param.value is not none else '' }}"
+           min="0" step="1"
+           placeholder="{{ param.placeholder or '' }}">
+    {% elif param.kind == "float" %}
+    <input type="number" name="{{ param.key }}" class="admin-input"
+           value="{{ '' if param.value is none else param.value }}"
+           min="0" max="2" step="0.1"
+           placeholder="{{ param.placeholder or '' }}">
+    {% else %}
+    <input type="text" name="{{ param.key }}" class="admin-input"
+           value="{{ '' if param.value is none else param.value }}"
+           placeholder="{{ param.placeholder or '' }}">
+    {% endif %}
 </article>

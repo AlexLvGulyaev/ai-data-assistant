@@ -4,26 +4,28 @@
             Провайдер
             <span class="admin-tooltip__text">Пресет провайдера модели: OpenAI (эталон, drop-in),
             GigaChat (Сбер, OAuth-адаптер), YandexGPT (folder_id + header) или «Свой» (любой
-            OpenAI-совместимый endpoint). Выбор пресета заполняет endpoint, модель, имя и
-            structured_output. Секреты — в .env (OPENAI_API_KEY для OpenAI/Yandex/Свой,
+            OpenAI-совместимый endpoint). Клик по чипу заполняет поля ниже (endpoint, модель,
+            имя, structured_output) — но НЕ сохраняет: нажмите «Сохранить настройки» вверху
+            панели. Секреты — в .env (OPENAI_API_KEY для OpenAI/Yandex/Свой,
             GIGACHAT_AUTH_KEY для GigaChat).</span>
         </h2>
         <span class="admin-card__key">provider · {{ provider }}</span>
     </header>
 
     <div class="admin-presets">
-        <form class="admin-presets__form"
-              hx-post="/admin/provider"
-              hx-target="#provider-section"
-              hx-swap="outerHTML">
-            {% for p in provider_presets %}
-            <button type="submit" name="preset" value="{{ p.key }}"
-                    class="preset-chip {% if p.active %}preset-chip--active{% endif %}">
-                {{ p.label }}
-            </button>
-            {% endfor %}
-        </form>
+        {% for p in provider_presets %}
+        <button type="button" class="preset-chip js-preset-chip {% if p.active %}preset-chip--active{% endif %}"
+                data-provider="{{ p.key }}"
+                data-base-url="{{ provider_preset_map[p.key]['base_url'] }}"
+                data-model="{{ provider_preset_map[p.key]['default_model'] }}"
+                data-name="{{ provider_preset_map[p.key]['provider_name'] or '' }}"
+                data-structured="{{ 'true' if provider_preset_map[p.key]['structured_output'] else 'false' }}">
+            {{ p.label }}
+        </button>
+        {% endfor %}
     </div>
+
+    <input type="hidden" name="provider" value="{{ provider }}">
 
     <div class="admin-provider-fields">
         {% for param in provider_fields %}
@@ -39,9 +41,3 @@
                 hx-disabled-elt="this">Тест провайдера</button>
     </div>
 </section>
-
-{% if provider_status_message %}
-{% set status_message = provider_status_message %}
-{% set status_kind = provider_status_kind or 'ok' %}
-<div id="admin-status" hx-swap-oob="outerHTML">{% include "partials/admin_status.html" %}</div>
-{% endif %}

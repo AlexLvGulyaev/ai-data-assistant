@@ -17,7 +17,7 @@ from app.services.registries import (
     PROVIDER_ORDER,
     PROVIDER_PRESETS,
 )
-from app.services.runtime_config import RUNTIME_KEYS, RuntimeConfig
+from app.services.runtime_config import OPT_IN_KEYS, RUNTIME_KEYS, RuntimeConfig
 from app.services.usage_service import UsageService
 
 
@@ -133,11 +133,12 @@ PARAM_META: dict[str, dict[str, Any]] = {
 }
 
 # Поля, живущие в секции «Провайдер» (заполняются пресетом, но редактируются и
-# по отдельности). Порядок = порядок вывода.
+# по отдельности). Порядок = порядок вывода. Раскладка 2+2: верхний ряд —
+# Имя провайдера + Модель, нижний — Endpoint + Structured output.
 PROVIDER_FIELD_KEYS: tuple[str, ...] = (
+    "provider_name",
     "openai_model",
     "openai_base_url",
-    "provider_name",
     "structured_output",
 )
 # Поля компактной сетки операторских параметров (справа под секцией провайдера).
@@ -171,9 +172,18 @@ def _require_admin(credentials: HTTPBasicCredentials | None = Depends(security))
 
 
 def _param_row(key: str) -> dict[str, Any]:
-    """Собрать строку-описание параметра для рендера карточки в UI."""
+    """Собрать строку-описание параметра для рендера карточки в UI.
+
+    Для opt-in ключей (temperature/seed/provider_name/yandex_folder_id)
+    показываем пустое поле, если ключ не задан явно (has() False) — это и
+    есть состояние «не отправляется/нейтрально». Иначе оператор видел бы в
+    поле дефолт (например 0.0 для температуры) и думал, что значение активно.
+    """
     meta = PARAM_META.get(key, {"label": key, "kind": "text"})
-    value = runtime.get(key)
+    if key in OPT_IN_KEYS and not runtime.has(key):
+        value = None
+    else:
+        value = runtime.get(key)
     return {
         "key": key,
         "label": meta["label"],
@@ -236,6 +246,7 @@ async def admin_panel(request: Request, _: None = Depends(_require_admin)):
         "prompt_path": str(prompt_loader.system_prompt_path()),
         "usage": usage_service.as_dict(),
         "usage_path": str(usage_service.path),
+        "provider_preset_map": PROVIDER_PRESETS,
         "admin_enabled": True,
         "status_message": None,
         "status_kind": None,
@@ -244,6 +255,80 @@ async def admin_panel(request: Request, _: None = Depends(_require_admin)):
     if request.headers.get("HX-Request") == "true":
         return templates.TemplateResponse("partials/admin_content.html", context)
     return templates.TemplateResponse("admin.html", context)
+
+
+@router.post("/save", response_class=HTMLResponse)
+async def admin_save_all(request: Request, _: None = Depends(_require_admin)):
+    """Единое сохранение всех операторских настроек + системного промпта.
+
+    Принимает одну форму со всеми полями (провайдер, 4 поля провайдера, 6
+    общих параметров, текст промпта). Сначала валидирует все параметры
+    «сухим» проходом (runtime.coerce, без записи) — если хоть одно поле
+    невалидно, ничего не пишется и оператору возвращается ошибка со списком
+    полей. Иначе пишет все ключи и промпт.
+
+    Для opt-in ключей (temperature/seed/provider_name/yandex_folder_id)
+    пустое поле = opt-out: ключ удаляется из config.json (reset), параметр
+    перестаёт отправляться в запрос. Это сохраняет портабельность: gpt-5-mini
+    и подобные не получают отвергаемую температуру после «очистить + сохранить».
+    """
+    form = await request.form()
+    errors: list[str] = []
+
+    # 1) Сухая валидация всех параметров.
+    for key in RUNTIME_KEYS:
+        raw = form.get(key, "")
+        if key in OPT_IN_KEYS and str(raw).strip() == "":
+            continue  # opt-out — валидировать нечего
+        try:
+            runtime.coerce(key, raw)
+        except Exception as exc:  # noqa: BLE001
+            label = PARAM_META.get(key, {}).get("label", key)
+            errors.append(f"«{label}»: {exc}")
+
+    if errors:
+        return templates.TemplateResponse(
+            "partials/admin_status.html",
+            {
+                "request": request,
+                "status_message": "Не сохранено — " + "; ".join(errors),
+                "status_kind": "error",
+            },
+        )
+
+    # 2) Запись всех параметров.
+    for key in RUNTIME_KEYS:
+        raw = form.get(key, "")
+        if key in OPT_IN_KEYS and str(raw).strip() == "":
+            runtime.reset(key)
+        else:
+            runtime.set(key, raw)
+
+    # 3) Системный промпт (файл-SOT). Пишем только при изменении —
+    #    иначе лишний mtime-бамп кеша.
+    content = form.get("content", "")
+    try:
+        if content != prompt_loader.read_system_prompt_raw():
+            prompt_loader.write_system_prompt(content)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Admin prompt save failed: %s", exc)
+        return templates.TemplateResponse(
+            "partials/admin_status.html",
+            {
+                "request": request,
+                "status_message": f"Параметры сохранены, но ошибка записи промпта: {exc}",
+                "status_kind": "error",
+            },
+        )
+
+    return templates.TemplateResponse(
+        "partials/admin_status.html",
+        {
+            "request": request,
+            "status_message": "Настройки сохранены. Применятся на следующем запросе без рестарта.",
+            "status_kind": "ok",
+        },
+    )
 
 
 @router.post("/provider", response_class=HTMLResponse)

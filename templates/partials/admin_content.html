@@ -6,50 +6,47 @@
 
 {% include "partials/admin_usage.html" %}
 
-<div class="admin-layout">
-    <main class="admin-layout__main">
-        <section class="admin-card admin-card--prompt" id="card-prompt">
-            <header class="admin-card__head">
-                <h2>Системный промпт</h2>
-                <span class="admin-card__key">{{ prompt_path }}</span>
-            </header>
-            <p class="admin-card__hint">
-                Единый источник истины — файл <code>prompts/v1/system.md</code>. Правка
-                применяется на следующем запросе (mtime-кеш). Переменные:
-                <code>{{ "{{specialization}}" }}</code> — специализация (операторский параметр),
-                <code>{{ "{{provider_attribution}}" }}</code> — « от &lt;провайдер&gt;» либо пусто.
-            </p>
+<form id="admin-settings-form"
+      hx-post="/admin/save"
+      hx-target="#admin-status"
+      hx-swap="innerHTML"
+      hx-disabled-elt="#admin-save-btn">
+    <div class="admin-layout">
+        <main class="admin-layout__main">
+            <section class="admin-card admin-card--prompt" id="card-prompt">
+                <header class="admin-card__head">
+                    <h2>Системный промпт</h2>
+                    <span class="admin-card__key">{{ prompt_path }}</span>
+                </header>
+                <p class="admin-card__hint">
+                    Единый источник истины — файл <code>prompts/v1/system.md</code>. Правка
+                    применяется на следующем запросе (mtime-кеш). Переменные:
+                    <code>{{ "{{specialization}}" }}</code> — специализация (операторский параметр),
+                    <code>{{ "{{provider_attribution}}" }}</code> — « от &lt;провайдер&gt;» либо пусто.
+                    Сохраняется общей кнопкой «Сохранить настройки» вверху панели.
+                </p>
+                <textarea name="content" class="admin-input admin-input--textarea"
+                          spellcheck="false">{{ prompt_text }}</textarea>
+            </section>
+        </main>
 
-            <form class="admin-form"
-                  hx-post="/admin/prompt"
-                  hx-target="#admin-status"
-                  hx-swap="innerHTML"
-                  hx-disabled-elt="button[data-key='prompt']">
-                <textarea name="content" class="admin-input admin-input--textarea" rows="22"
-                          data-key="prompt">{{ prompt_text }}</textarea>
-                <div class="admin-form__actions">
-                    <button type="submit" class="primary-btn" data-key="prompt">Сохранить промпт</button>
-                </div>
-            </form>
-        </section>
-    </main>
+        <aside class="admin-layout__side">
+            {% include "partials/admin_provider.html" %}
 
-    <aside class="admin-layout__side">
-        {% include "partials/admin_provider.html" %}
+            <div class="admin-grid">
+                {% for param in general_params %}
+                {% include "partials/admin_param_card.html" with context %}
+                {% endfor %}
+            </div>
 
-        <div class="admin-grid">
-            {% for param in general_params %}
-            {% include "partials/admin_param_card.html" with context %}
-            {% endfor %}
-        </div>
-
-        <footer class="admin-foot">
-            <p>Источник runtime-конфига: <code>{{ runtime_config_path }}</code></p>
-            <p class="admin-foot__note">
-                Секреты (OPENAI_API_KEY, GIGACHAT_AUTH_KEY, ADMIN_TOKEN) и bootstrap
-                (хост/порт, пути) живут в <code>.env</code> и требуют рестарта.
-                Операторские параметры выше — нет.
-            </p>
-        </footer>
-    </aside>
-</div>
+            <footer class="admin-foot">
+                <p>Источник runtime-конфига: <code>{{ runtime_config_path }}</code></p>
+                <p class="admin-foot__note">
+                    Секреты (OPENAI_API_KEY, GIGACHAT_AUTH_KEY, ADMIN_TOKEN) и bootstrap
+                    (хост/порт, пути) живут в <code>.env</code> и требуют рестарта.
+                    Операторские параметры выше — нет.
+                </p>
+            </footer>
+        </aside>
+    </div>
+</form>

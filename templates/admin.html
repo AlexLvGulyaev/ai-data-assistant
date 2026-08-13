@@ -7,7 +7,13 @@
             <h1>Админка оператора</h1>
             <p class="admin-sub">Runtime-параметры применяются на следующем запросе — без пересборки и рестарта.</p>
         </div>
-        <span class="admin-badge">runtime-config</span>
+        <div class="admin-head__actions">
+            <span class="admin-badge">runtime-config</span>
+            <button type="button" id="admin-save-btn" class="primary-btn admin-save-btn"
+                    form="admin-settings-form" title="Сохранить все настройки и промпт">
+                Сохранить настройки
+            </button>
+        </div>
     </header>
 
     {% include "partials/admin_content.html" %}

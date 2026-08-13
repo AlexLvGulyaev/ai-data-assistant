@@ -157,6 +157,7 @@ const exitBusy = () => {
 
 document.addEventListener("DOMContentLoaded", () => {
     setupComposer();
+    setupAdmin();
 
     document.body.addEventListener("htmx:beforeRequest", (e) => {
         busyCount += 1;
@@ -181,5 +182,90 @@ document.addEventListener("DOMContentLoaded", () => {
         busyCount = 0;
         exitBusy();
         setupComposer();
+        setupAdmin();
     });
 });
+
+/* ── Админка оператора ─────────────────────────────────────────────────
+   1) Единая кнопка «Сохранить настройки» в шапке живёт вне формы —
+      сабмитит общую форму через requestSubmit() (htmx перехватывает submit).
+   2) Чипы пресетов провайдера НЕ сабмитят: клик лишь заполняет 4 поля и
+      скрытый input provider, активный чип подсвечивается. Запись — общим
+      «Сохранить».
+   3) Тултипы параметров рендерятся фиксированным оверлеем (не absolute
+      внутри карточки) — иначе их клиппит overflow:auto боковой колонки, и
+      подсказки не видны. ──────────────────────────────────────────────── */
+
+const setupAdmin = () => {
+    // Кнопка сохранения (вне формы).
+    const saveBtn = document.getElementById("admin-save-btn");
+    const form = document.getElementById("admin-settings-form");
+    if (saveBtn && form && saveBtn.dataset.bound !== "1") {
+        saveBtn.dataset.bound = "1";
+        saveBtn.addEventListener("click", () => form.requestSubmit());
+    }
+
+    // Чипы пресетов — заполняют поля, без сабмита.
+    document.querySelectorAll(".js-preset-chip").forEach((chip) => {
+        if (chip.dataset.bound === "1") return;
+        chip.dataset.bound = "1";
+        chip.addEventListener("click", () => {
+            const f = document.getElementById("admin-settings-form");
+            if (!f) return;
+            const setVal = (name, val) => {
+                const el = f.querySelector(`[name="${name}"]`);
+                if (el) el.value = val;
+            };
+            setVal("openai_base_url", chip.dataset.baseUrl || "");
+            setVal("openai_model", chip.dataset.model || "");
+            setVal("provider_name", chip.dataset.name || "");
+            const sel = f.querySelector('[name="structured_output"]');
+            if (sel) sel.value = chip.dataset.structured === "true" ? "true" : "false";
+            setVal("provider", chip.dataset.provider || "");
+            document.querySelectorAll(".js-preset-chip").forEach((c) =>
+                c.classList.toggle("preset-chip--active", c === chip)
+            );
+        });
+    });
+
+    setupAdminTooltips();
+};
+
+const setupAdminTooltips = () => {
+    if (document.dataset.adminTooltipsBound === "1") return;
+    if (!document.getElementById("admin-settings-form")) return;
+    document.dataset.adminTooltipsBound = "1";
+
+    const tip = document.createElement("div");
+    tip.id = "admin-tooltip-floating";
+    tip.className = "admin-tooltip-floating";
+    tip.style.display = "none";
+    document.body.appendChild(tip);
+
+    const show = (target) => {
+        const src = target.querySelector(".admin-tooltip__text");
+        if (!src) return;
+        tip.textContent = src.textContent;
+        tip.style.display = "block";
+        const r = target.getBoundingClientRect();
+        const tw = tip.offsetWidth;
+        const th = tip.offsetHeight;
+        let left = r.left + r.width / 2 - tw / 2;
+        let top = r.top - th - 8;
+        if (top < 8) top = r.bottom + 8; // мало места сверху → показываем снизу
+        left = Math.max(8, Math.min(left, window.innerWidth - tw - 8));
+        tip.style.left = `${left}px`;
+        tip.style.top = `${top}px`;
+    };
+    const hide = () => { tip.style.display = "none"; };
+
+    document.addEventListener("mouseover", (e) => {
+        const t = e.target.closest ? e.target.closest(".admin-tooltip") : null;
+        if (t) show(t);
+    });
+    document.addEventListener("mouseout", (e) => {
+        const t = e.target.closest ? e.target.closest(".admin-tooltip") : null;
+        if (t) hide();
+    });
+    window.addEventListener("scroll", hide, true);
+};
