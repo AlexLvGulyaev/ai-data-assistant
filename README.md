@@ -137,6 +137,9 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md) — паспорт состояния проекта.
 - [`docs/SECURITY_NOTES.md`](docs/SECURITY_NOTES.md) — секреты, границы, безопасность.
 - [`docs/DEPLOYMENT_VALIDATION_REPORT.md`](docs/DEPLOYMENT_VALIDATION_REPORT.md) — отчёт валидации в чистом окружении.
+- [`docs/E2E_SCENARIOS.md`](docs/E2E_SCENARIOS.md) — сквозные бизнес-сценарии (чат + админка) для ручного тестирования и демонстрации.
+- [`docs/SCREENSHOTS.md`](docs/SCREENSHOTS.md) — галерея экранов с подписями (Что показано / Роль / Почему важно).
+- [`docs/screenshots/MEDIA_INDEX.md`](docs/screenshots/MEDIA_INDEX.md) — каталог медиаматериалов (IMG-ID, схема нейминга, матрица использования).
 
 ---
 
