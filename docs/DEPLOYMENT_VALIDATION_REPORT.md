@@ -1,4 +1,4 @@
-# Data Assistant · DEPLOYMENT_VALIDATION_REPORT
+# ✅ Data Assistant · DEPLOYMENT_VALIDATION_REPORT
 
 **Проект:** ai-data-assistant
 **Дата валидации:** 2026-08-12
@@ -7,7 +7,7 @@
 
 ---
 
-## Условия валидации
+## 📋 Условия валидации
 
 - Команда выполняла **только** шаги из `DEPLOYMENT_GUIDE.md`.
 - Секреты (`OPENAI_API_KEY`, `ADMIN_TOKEN`) подготовлены из `.env.example` (плейсхолдеры заменены на реальные значения) — как описано в руководстве.
@@ -16,7 +16,7 @@
 
 ---
 
-## Результаты по шагам
+## ✅ Результаты по шагам
 
 | # | Шаг DEPLOYMENT_GUIDE | Выполненное действие | Ожидаемый результат | Фактический результат | Статус |
 |---|----------------------|----------------------|---------------------|------------------------|--------|
@@ -41,7 +41,7 @@
 
 ---
 
-## Итог
+## 🏁 Итог
 
 - **Всего проверок:** 18
 - **PASS:** 18
@@ -59,12 +59,12 @@
 
 ---
 
-## Приложение A. Верификация публичного эндпоинта (2026-08-12)
+## 📎 Приложение A. Верификация публичного эндпоинта (2026-08-12)
 
 > Это **Deployment Verification** запущенного публичного экземпляра, а не часть
-> clean-room критерия §«Итог». Публичный деплой зависит от общей инфраструктуры
-> лаборатории (Traefik, DNS), которая не входит в репозиторий кейса, и поэтому
-> не может быть воспроизведён «с нуля по репозиторию» в чистом окружении.
+> clean-room критерия §«Итог». Публичный деплой зависит от внешней инфраструктуры
+> (обратный прокси Traefik, DNS), которая не входит в репозиторий проекта, и
+> поэтому не может быть воспроизведён «с нуля по репозиторию» в чистом окружении.
 > Критерий готовности к публикации (clean-room, 18/18) этим разделом **не
 > заменяется** — он зафиксирован выше. Здесь верифицируется, что запущенный
 > публичный эндпоинт `https://data-assistant.alex-n8n.site` работоспособен.
@@ -79,12 +79,13 @@
 | P1 | Health (HTTPS) | `curl https://data-assistant.alex-n8n.site/health` | `{"status":"ok","app":"Data Assistant"}` | `{"status":"ok","app":"Data Assistant"}` | PASS |
 | P2 | Главная (HTTPS, follow) | `curl -L -o /dev/null -w "%{http_code}" https://data-assistant.alex-n8n.site/` | `200` | `200` (редирект `/` → `/chat/<id>`, HTML 8 KB, `<title>AI Data Chat</title>`) | PASS |
 | P3 | Сертификат | `openssl s_client ... \| openssl x509 -noout -issuer` | Let's Encrypt | `issuer=C = US, O = Let's Encrypt, CN = YR2`, subject `CN=data-assistant.alex-n8n.site`, valid до Nov 2026 | PASS |
-| P4 | Routing через Traefik | `docker exec n8n-traefik-1 wget -qO- http://data-assistant:8000/health` | JSON из контейнера | `{"status":"ok","app":"Data Assistant"}` (прокси достаёт контейнер по имени в `n8n_default`) | PASS |
+| P4 | Routing через Traefik | `docker exec <traefik-container> wget -qO- http://data-assistant:8000/health` | JSON из контейнера | `{"status":"ok","app":"Data Assistant"}` (прокси достаёт контейнер по имени в сети прокси) | PASS |
 | P5 | Контейнер healthy | `docker ps --filter name=data-assistant` | Up (healthy) | `Up (healthy)`, `/health` 200 внутри контейнера | PASS |
 
-**Применение конфигурации прокси:** правка `/opt/n8n/dynamic.yml` (additive:
+**Применение конфигурации прокси:** правка файла динамической конфигурации
+Traefik (ваш `--providers.file.filename`; additive:
 router `data-assistant` + service → `http://data-assistant:8000`) применена
-перезапуском `n8n-traefik-1` (file-provider без `watch` читает файл при старте).
+перезапуском контейнера Traefik (file-provider без `watch` читает файл при старте).
 После перезапуска ACME выпустил сертификат для нового домена; существующие
 домены не затронуты (`acme.json` сохранён).
 
@@ -93,7 +94,7 @@ router `data-assistant` + service → `http://data-assistant:8000`) примен
 
 ---
 
-## Приложение B. Перевалидация после SSOT-рефактора (2026-08-12)
+## 📎 Приложение B. Перевалидация после SSOT-рефактора (2026-08-12)
 
 **Повод:** изменение `docker-compose.yml` (добавлен volume `./prompts:/app/prompts`),
 слоя конфигурации (`config.py` — из `.env` убраны операторские параметры,
@@ -130,7 +131,7 @@ functional Validation** в существенном объёме, но не ст
 
 ---
 
-## Приложение C. Перевалидация после multi-provider admin (2026-08-12)
+## 📎 Приложение C. Перевалидация после multi-provider admin (2026-08-12)
 
 **Повод:** добавление реестра пресетов провайдеров (`PROVIDER_PRESETS`), новых
 runtime-ключей (`provider`, `yandex_folder_id`), секрета `GIGACHAT_AUTH_KEY`,
@@ -159,13 +160,14 @@ functional Validation в существенном объёме; полная cle
 | C11 | Yandex folder_id подстановка | `provider=yandex`, `yandex_folder_id=b1g...` | `_effective_model` подставляет folder_id; `default_headers` с `x-folder-id` | `effective_model=gpt://b1g.../yandexgpt/latest`; client signature `(yandex_url, yandex, folder)`; `default_headers={x-folder-id, x-data-logging-enabled:false}` | PASS |
 | C12 | Yandex routing | `test_connection()` при `provider=yandex` | запрос уходит на Yandex endpoint | routing на `llm.api.cloud.yandex.net` подтверждён ответом Yandex (401 на OpenAI-ключе — ожидаемо, нужен API-ключ Yandex) | PASS |
 | C13 | Секреты вне config.json | `config.json` не содержит `api_key`/`auth_key`/`admin_token` | только операторские ключи | секреты отсутствуют (только в `.env`) | PASS |
-| C14 | GigaChat end-to-end (real key) | `GIGACHAT_AUTH_KEY` задан (переиспользован из `.env` кейса AI Curator); `test_connection()` + `plan_response()` при `provider=gigachat` | OAuth-обмен + пинг OK; план с действием | `enabled=True`; `test_connection`: `ok=True, latency_ms≈550, reply=pong`; `plan_response` к `GigaChat-Max`: `actions=[{generate_chart, pie, category, revenue}]` (free-text parse) | PASS |
+| C14 | GigaChat end-to-end (real key) | `GIGACHAT_AUTH_KEY` задан (из локального `.env`, подготовленного из `.env.example`); `test_connection()` + `plan_response()` при `provider=gigachat` | OAuth-обмен + пинг OK; план с действием | `enabled=True`; `test_connection`: `ok=True, latency_ms≈550, reply=pong`; `plan_response` к `GigaChat-Max`: `actions=[{generate_chart, pie, category, revenue}]` (free-text parse) | PASS |
 
 **Итог приложения C:** 14/14 PASS. Multi-provider admin воспроизведён пересборкой
 из артефактов репозитория: пресеты применяются, OpenAI и GigaChat работают
 end-to-end реальными запросами (регрессия температуры не вернулась; GigaChat —
 OAuth-адаптер, free-text parse), Yandex корректно подставляет folder_id и
 заголовки (routing подтверждён; end-to-end требует API-ключ Yandex). Секрет
-`GIGACHAT_AUTH_KEY` переиспользован из соседнего кейса лаборатории (AI Curator) и
-остаётся только в локальном `.env` (gitignored, в репозиторий не попадает).
+`GIGACHAT_AUTH_KEY` берётся из локального `.env` (подготовленного из
+`.env.example`) и остаётся только в локальном `.env` (gitignored, в репозиторий
+не попадает).
 Строго clean-env перевалидация (новый VPS) — за оператором.

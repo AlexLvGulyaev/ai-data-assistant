@@ -1,4 +1,4 @@
-# Data Assistant · DEPLOYMENT_GUIDE
+# 🚀 Data Assistant · DEPLOYMENT_GUIDE
 
 **Проект:** ai-data-assistant
 **Дата:** 2026-08-12
@@ -6,7 +6,7 @@
 
 ---
 
-## 1. Назначение
+## 🎯 1. Назначение
 
 Единый Source of Truth для воспроизведения работоспособного экземпляра Data Assistant в чистом окружении. Если после выполнения руководства система не работает — руководство устарело.
 
@@ -16,7 +16,7 @@
 
 ---
 
-## 2. Связанные документы
+## 📚 2. Связанные документы
 
 - [`README.md`](../README.md) — главная страница, быстрый старт.
 - [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) — архитектура.
@@ -27,7 +27,7 @@
 
 ---
 
-## 3. Варианты развёртывания
+## 📦 3. Варианты развёртывания
 
 | Вариант | Compose | Когда использовать | Требования |
 |---------|---------|--------------------|------------|
@@ -38,7 +38,7 @@
 
 ---
 
-## 4. Требования
+## ✅ 4. Требования
 
 - Установленный Docker и Docker Compose (плагин `docker compose`, не `docker-compose` v1).
 - Ключ API провайдера модели (`OPENAI_API_KEY`) — для OpenAI: `sk-…`; для
@@ -52,7 +52,7 @@
 
 ---
 
-## 5. Переменные окружения
+## 🔧 5. Переменные окружения
 
 Создайте `.env` из `.env.example`:
 
@@ -84,7 +84,7 @@ cp .env.example .env
 
 ---
 
-## 6. Развёртывание Production
+## 🚀 6. Развёртывание Production
 
 ```bash
 # 1. Подготовьте .env
@@ -114,29 +114,34 @@ APP_PORT=8010 docker compose -f docker-compose.yml up -d --build
 
 ---
 
-## 6.1. Развёртывание на публичный домен (обратный прокси)
+## 🌐 6.1. Развёртывание на публичный домен (обратный прокси)
 
 Production-конфигурация `docker-compose.yml` готова к выставлению через
 обратный прокси: хост-порт **не публикуется** (`expose: ["8000"]` вместо
 `ports`), контейнер подключается к внешней сети прокси, и прокси достаёт его
-по имени контейнера. Ниже — конкретная схема для стенда лаборатории
-(общий Traefik v3, file-provider), на которой верифицирован публичный эндпоинт
-`https://data-assistant.alex-n8n.site`.
+по имени контейнера. Ниже — схема на примере Traefik v3 (file-provider).
+Значения сети, resolver'а, entrypoint'а и пути к файлу конфигурации — **ваши**;
+`data-assistant.alex-n8n.site` — пример домена (замените на ваш). На этой схеме
+верифицирован публичный эндпоинт демо.
 
 ### Предусловия
 
 - На хосте уже работает Traefik v3 с file-provider (`--providers.file.filename`),
   entrypoint `websecure` (443), ACME-resolver (Let's Encrypt, HTTP-01 challenge
-  на entrypoint `web`). У стенда это `n8n-traefik-1`, resolver `myresolver`.
+  на entrypoint `web`). Имя контейнера Traefik, resolver и entrypoint — ваши
+  значения (пример: контейнер `traefik`, resolver `myresolver`, entrypoint
+  `websecure`).
 - Контейнер Traefik и контейнер Data Assistant должны находиться в **одной
   Docker-сети**, чтобы прокси мог достучаться до контейнера по имени.
-  Используется внешняя сеть `n8n_default`.
+  В примере используется внешняя сеть `n8n_default` (замените на имя вашей сети
+  прокси).
 - DNS: A-запись домена → IP хоста с Traefik (например,
-  `data-assistant.alex-n8n.site A <IP>`).
+  `<your-domain> A <IP>`).
 
 ### Шаг 1. Подключение контейнера к сети прокси
 
-`docker-compose.yml` уже содержит:
+`docker-compose.yml` уже содержит (имя сети `n8n_default` — пример; замените
+на имя вашей сети прокси):
 
 ```yaml
 services:
@@ -146,32 +151,34 @@ services:
       - "8000"          # без публикации на хост — наружу смотрит прокси
     networks:
       - default
-      - n8n_default     # внешняя сеть Traefik
+      - n8n_default     # внешняя сеть прокси (ваша)
 networks:
   n8n_default:
     external: true
 ```
 
 > Если сети `n8n_default` на хосте нет, создайте её (`docker network create
-> n8n_default`) или укажите имя вашей сети прокси. Имя сети и имя контейнера
-> (`container_name: data-assistant`) используются в конфиге прокси.
+> n8n_default`) или укажите имя вашей сети прокси (и в compose, и в конфиге
+> Traefik). Имя сети и имя контейнера (`container_name: data-assistant`)
+> используются в конфиге прокси.
 
 ### Шаг 2. Регистрация маршрута в Traefik (file-provider)
 
 Routing для file-provider описывается в файле, который смонтирован в Traefik
-(на стенде — `/opt/n8n/dynamic.yml`). Добавьте две секции — роутер и сервис
-(**additive**, не трогая остальные записи):
+(ваш `--providers.file.filename`; пример пути — `/etc/traefik/dynamic.yml`).
+Добавьте две секции — роутер и сервис (**additive**, не трогая остальные
+записи):
 
 ```yaml
 http:
   routers:
     # ... существующие роутеры ...
     data-assistant:
-      rule: "Host(`data-assistant.alex-n8n.site`)"
+      rule: "Host(`data-assistant.alex-n8n.site`)"   # ваш домен
       entryPoints:
-        - websecure
+        - websecure                                   # ваш entrypoint
       tls:
-        certResolver: myresolver
+        certResolver: myresolver                      # ваш resolver
       service: data-assistant
       priority: 1
 
@@ -184,17 +191,17 @@ http:
 ```
 
 > Имя resolver'а и entrypoint'а должны совпадать с теми, что настроены в
-> вашем Traefik. На стенде это `myresolver` и `websecure`. Имя контейнера в
+> вашем Traefik (пример: `myresolver` и `websecure`). Имя контейнера в
 > `url` (`data-assistant`) должно совпадать с `container_name` в compose.
 
 ### Шаг 3. Применение конфигурации прокси
 
 Если Traefik запущен **без** file-provider `watch` (файл читается только при
-старте — как на стенде), конфигурация вступает в силу после перезапуска
-Traefik:
+старте — типично для file-provider), конфигурация вступает в силу после
+перезапуска Traefik:
 
 ```bash
-docker restart n8n-traefik-1   # кратковременно (2–5 c) «гасит» все публичные сервисы
+docker restart <traefik-container>   # кратковременно (2–5 c) «гасит» все публичные сервисы
 ```
 
 > Существующие сертификаты хранятся в `acme.json` и не перевыпускаются при
@@ -235,7 +242,7 @@ HTTP-01). До выпуска Traefik может отдать самоподпи
 
 ---
 
-## 7. Развёртывание Dev/Operator
+## 🛠️ 7. Развёртывание Dev/Operator
 
 Режим монтирует исходники, промпты, шаблоны и статику внутрь контейнера и запускает `uvicorn --reload` — правки кода и промптов применяются без пересборки образа.
 
@@ -256,7 +263,7 @@ curl http://localhost:8000/health
 
 ---
 
-## 8. Локальный запуск без Docker
+## 🐍 8. Локальный запуск без Docker
 
 ```bash
 python -m venv .venv
@@ -270,7 +277,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ---
 
-## 9. Проверка работоспособности (Verification)
+## 🧪 9. Проверка работоспособности (Verification)
 
 После развёртывания проверьте:
 
@@ -294,7 +301,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ---
 
-## 10. Управление
+## 🎛️ 10. Управление
 
 - **Остановить:** `docker compose down` (dev) или `docker compose -f docker-compose.yml down` (production).
 - **Логи:** `docker compose logs -f web`.
@@ -311,7 +318,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ---
 
-## 11. Каталоги и тома
+## 🗂️ 11. Каталоги и тома
 
 | Путь | Назначение | В образе | Volume |
 |------|------------|----------|--------|
@@ -332,7 +339,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ---
 
-## 12. Устранение неисправностей
+## 🩹 12. Устранение неисправностей
 
 | Симптом | Причина | Решение |
 |---------|---------|---------|

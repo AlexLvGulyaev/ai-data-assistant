@@ -1,35 +1,35 @@
-# Data Assistant · External Providers (OpenAI-compatible)
+# 🤖 Data Assistant · External Providers (OpenAI-compatible)
 
 **Проект:** ai-data-assistant
 **Дата:** 2026-08-12
 **Статус:** исследовательская справка (Source of Truth — официальные доки провайдеров).
 
 Назначение: зафиксировать реальные параметры OpenAI-совместимых провайдеров
-для реестра пресетов в `/admin`. По правилу APT (внешний интеграция —
+для реестра пресетов в `/admin`. По правилу APL (внешняя интеграция —
 официальная документация = SOT) значения взяты из доков провайдеров, не из
 памяти модели.
 
 ---
 
-## Краткая сводка
+## 📋 Краткая сводка
 
 | Провайдер | base_url | Дефолтная модель | Auth для OpenAI SDK | structured_output | Drop-in? |
 |-----------|----------|------------------|--------------------|--------------------|----------|
 | **OpenAI** | `https://api.openai.com/v1` | `gpt-5-mini` | raw `api_key` (Bearer) — напрямую | да (json_schema strict, верифицировано) | **да** |
-| **GigaChat** (Сбер) | `https://gigachat.devices.sberbank.ru/api/v1` | `GigaChat-Max` | **нет** — OAuth-обмен authorization key → access token (адаптер AI Curator запрашивает per-request, refresh скрыт) | нет (не задокументировано) | **нет** (но есть рабочий адаптер в лабе) |
-| **YandexGPT** (Yandex Foundation Models) | `https://llm.api.cloud.yandex.net/v1` | `gpt://<folder_id>/yandexgpt/latest` | API key как Bearer **+** header `x-folder-id` (и опц. `x-data-logging-enabled: false`) | нет (не подтверждено) | **частично** (в лабе не верифицирован) |
+| **GigaChat** (Сбер) | `https://gigachat.devices.sberbank.ru/api/v1` | `GigaChat-Max` | **нет** — OAuth-обмен authorization key → access token (адаптер `gigachat_adapter.py` запрашивает per-request, refresh скрыт) | нет (не задокументировано) | **нет** (но есть рабочий адаптер в проекте) |
+| **YandexGPT** (Yandex Foundation Models) | `https://llm.api.cloud.yandex.net/v1` | `gpt://<folder_id>/yandexgpt/latest` | API key как Bearer **+** header `x-folder-id` (и опц. `x-data-logging-enabled: false`) | нет (не подтверждено) | **частично** (в проекте не верифицирован) |
 
 **Главный вывод:** чистым drop-in (только `base_url` + `model` + `api_key`)
 является только OpenAI. GigaChat требует код-адаптера (OAuth-обмен токена + SSL),
-но в лабе (AI Curator) уже есть рабочая реализация для переиспользования.
+но в проекте уже есть рабочий адаптер (`app/services/gigachat_adapter.py`).
 YandexGPT требует `folder_id` + header `x-folder-id` (default_headers в OpenAI
-SDK) и в лабе не верифицирован. Пресет «провайдер» как чистая конфигурация
+SDK) и в проекте не верифицирован. Пресет «провайдер» как чистая конфигурация
 (без кода) корректно работает только для OpenAI; GigaChat/Yandex — через
 адаптеры.
 
 ---
 
-## 1. OpenAI (эталон, верифицирован в проде)
+## 🟢 1. OpenAI (эталон, верифицирован в проде)
 
 - **base_url:** `https://api.openai.com/v1`
 - **Модель:** `gpt-5-mini` (используется в проекте; верифицировано реальными
@@ -46,12 +46,12 @@ SDK) и в лабе не верифицирован. Пресет «провай
     opt-in (отправляется только если оператор задал явно).
 - **provider_name:** «OpenAI».
 
-## 2. GigaChat (Сбер) — НЕ drop-in, но в лабе есть рабочий адаптер
+## 🤖 2. GigaChat (Сбер) — НЕ drop-in, требуется адаптер
 
 - **base_url:** `https://gigachat.devices.sberbank.ru/api/v1` (рабочий endpoint,
-  battle-tested в AI Curator). Документация совместимости называет также
-  `https://api.giga.chat/v1` — в лабе не верифицировался.
-- **Модель:** `GigaChat-Max` (в AI Curator). На странице совместимости фигурирует
+  battle-tested в проекте). Документация совместимости называет также
+  `https://api.giga.chat/v1` — в проекте не верифицировался.
+- **Модель:** `GigaChat-Max` (используется в проекте). На странице совместимости фигурирует
   `GigaChat`; `GigaChat-Max`/`GigaChat-Pro` — в прод-конфиге лабы.
 - **Auth:** **нельзя** использовать authorization key как статический `api_key`.
   Нужен обмен authorization key → access token: POST на
@@ -59,21 +59,21 @@ SDK) и в лабе не верифицирован. Пресет «провай
   `Authorization: Basic <auth_key>`, scope `GIGACHAT_API_PERS`; полученный
   access token — как `Authorization: Bearer <token>` в `/chat/completions`.
   Access token живёт ~30 минут, **но это не ручная проблема оператора**:
-  адаптер AI Curator запрашивает свежий token перед каждым запросом
+  адаптер (`gigachat_adapter.py`) запрашивает свежий token перед каждым запросом
   (`_get_access_token` в `generate_sync`, без кеша) — refresh под капотом.
-- **TLS:** эндпоинты GigaChat используют сертификат Минцифры РФ. AI Curator
+- **TLS:** эндпоинты GigaChat используют сертификат Минцифры РФ. Проект
   решает отключением проверки (`ssl.CERT_NONE`) — dev-уровень; для prod нужен
   Russian Trusted Root CA bundle.
 - **structured_output:** не задокументировано → `structured_output=false`.
-- **Реализация в лабе:** `cases/ai-curator/src/services/gigachat_adapter.py` —
+- **Реализация в проекте:** `app/services/gigachat_adapter.py` —
   прямой HTTP (urllib), per-request token exchange, SSL off. Можно
   переиспользовать/адаптировать под наш `AIService` (или держать отдельным
   adapter-классом). Это НЕ OpenAI SDK — отдельный код-путь.
 - **provider_name:** «GigaChat».
 - **Источники:** [Sber developers — GigaChat OpenAI-compatible mode](https://developers.sber.ru/docs/ru/gigachat/guides/compatible-openai.md),
-  лабораторная реализация `cases/ai-curator/src/services/gigachat_adapter.py`.
+  реализация `app/services/gigachat_adapter.py`.
 
-## 3. YandexGPT (Yandex Foundation Models) — частичный drop-in
+## ☁️ 3. YandexGPT (Yandex Foundation Models) — частичный drop-in
 
 - **base_url:** `https://llm.api.cloud.yandex.net/v1` (OpenAI-совместимый путь
   `/v1/chat/completions`).
@@ -100,7 +100,7 @@ SDK) и в лабе не верифицирован. Пресет «провай
 
 ---
 
-## Следствие для реестра пресетов (реализовано — вариант B)
+## 🔧 Следствие для реестра пресетов (реализовано — вариант B)
 
 Реестр пресетов провайдеров (`PROVIDER_PRESETS` в `registries.py`) хранит для
 каждого пресета: `label`, `provider_name`, `base_url`, `default_model`,
@@ -112,7 +112,7 @@ SDK) и в лабе не верифицирован. Пресет «провай
 - **OpenAI** (`auth_mode=openai_key`) — пресет + `OPENAI_API_KEY` как Bearer.
   Работает сразу, structured_output поддерживается.
 - **GigaChat** (`auth_mode=gigachat_oauth`) — пресет заполняет endpoint/модель,
-  запрос идёт через `app/services/gigachat_adapter.py` (порт адаптера AI Curator:
+  запрос идёт через `app/services/gigachat_adapter.py` (порт адаптера:
   OAuth-обмен authorization key → access token **per-request**, refresh скрыт).
   Секрет `GIGACHAT_AUTH_KEY` в `.env` (отдельный от `OPENAI_API_KEY`).
   structured_output выключен (не поддерживается) — ответ разбирается устойчивым
@@ -125,12 +125,12 @@ SDK) и в лабе не верифицирован. Пресет «провай
 - **Свой** (`auth_mode=openai_key`) — пустые endpoint/модель, оператор заполняет
   вручную; `OPENAI_API_KEY` как Bearer; structured_output по умолчанию Вкл.
 
-### Статус верификации (лаборатория, 2026-08-12)
+### 🧪 Статус верификации (2026-08-13)
 
 - **OpenAI** — end-to-end верифицирован реальным запросом к `gpt-5-mini`
   (structured_output, план с pie-графиком), `test_connection` OK.
 - **GigaChat** — end-to-end верифицирован реальным `GIGACHAT_AUTH_KEY`
-  (authorization key Сбер, переиспользован из `.env` кейса AI Curator):
+  (authorization key Сбер, из локального `.env`):
   `enabled=True`, `test_connection` OK (OAuth-обмен + ping, латентность ~550 мс,
   ответ «pong»), `plan_response` к `GigaChat-Max` вернул план с pie-графиком
   (free-text парсер, structured_output выключен). Без ключа — честная

@@ -1,33 +1,100 @@
-# Data Assistant · ARCHITECTURE
+# 🏗️ ARCHITECTURE.md — Data Assistant
 
 **Проект:** ai-data-assistant
-**Дата:** 2026-08-12
+**Дата:** 2026-08-13
+**Статус:** as-built
 
 ---
 
-## 1. Обзор
+## 🎯 1. Обзор
 
-Data Assistant — веб-приложение для анализа данных в чате. Пользователь загружает файл и общается с AI-ассистентом; модель планирует действия, приложение исполняет их локально (графики, отчёты, метрики).
+Data Assistant — веб-приложение для анализа данных в чате. Пользователь
+загружает файл и общается с AI-ассистентом; модель планирует действия,
+приложение исполняет их локально (графики, отчёты, метрики).
 
-Ключевая архитектурная идея: **разделение bootstrap-параметров (стартовых, требуют рестарта) и операторских параметров (runtime, меняются без рестарта)** — вариант 3.
+Ключевая архитектурная идея: **разделение bootstrap-параметров (стартовых,
+требуют рестарта) и операторских параметров (runtime, меняются без рестарта)**
+— вариант 3.
 
+### 🌐 Context Diagram (C4 Level 1)
+
+```mermaid
+flowchart TB
+    subgraph "Внешние пользователи"
+        User[Пользователь]
+        Operator[Оператор]
+    end
+
+    DA["Data Assistant<br/>AI-чат для анализа данных"]
+
+    subgraph "Внешние сервисы"
+        LLM[LLM Provider<br/>OpenAI / GigaChat / YandexGPT]
+    end
+
+    User -->|"HTTP/S — чат, файлы, артефакты"| DA
+    Operator -->|"HTTP/S — /admin, runtime-параметры"| DA
+    DA -->|"Chat Completions + structured output"| LLM
 ```
-Пользователь ──HTTP──► FastAPI (routes) ──► ChatService (оркестрация)
-                                              │
-                                              ├──► AIService (Chat Completions + structured output)
-                                              ├──► FileService (загрузка, чтение данных)
-                                              ├──► AnalysisService (метрики)
-                                              ├──► ChartService (histogram/bar/line/pie)
-                                              └──► ReportService (DOCX)
-                                                        │
-AIService ──читает runtime──► RuntimeConfig (JSON + mtime-кеш) ◄──пишет── /admin (HTMX)
-AIService ──читает промпт──► PromptLoader (prompts/v1/system.md, mtime-кеш)
-AIService ──читает реестры──► registries (ACTION_TYPES, CHART_TYPES) — единый источник истины
+
+### 📦 Container Diagram
+
+```mermaid
+flowchart TB
+    subgraph "Data Assistant"
+        WebUI["Веб-интерфейс<br/>Jinja2 + HTMX"]
+        Admin["Консоль /admin<br/>runtime-параметры, промпт, статистика"]
+
+        subgraph "Backend — FastAPI"
+            Routes["Routes<br/>pages/chat/upload/actions/admin"]
+            Chat["ChatService<br/>оркестрация диалога"]
+            AIService["AIService<br/>Chat Completions, multi-provider"]
+            FileService["FileService<br/>загрузка, чтение данных"]
+            Analysis["AnalysisService<br/>метрики"]
+            Chart["ChartService<br/>histogram/bar/line/pie"]
+            Report["ReportService<br/>DOCX"]
+            Runtime["RuntimeConfig<br/>config.json + mtime-кеш"]
+            Prompt["PromptLoader<br/>prompts/v1/system.md"]
+            Reg[("Registries<br/>ACTION_TYPES / CHART_TYPES")]
+        end
+
+        Storage[("storage/<br/>uploads, outputs, chats, config.json")]
+    end
+
+    LLM[LLM Provider]
+
+    WebUI --> Routes
+    Admin --> Routes
+    Routes --> Chat
+    Chat --> AIService
+    Chat --> FileService
+    Chat --> Analysis
+    Chat --> Chart
+    Chat --> Report
+
+    AIService -->|"читает runtime"| Runtime
+    AIService -->|"читает промпт"| Prompt
+    AIService -->|"читает реестры"| Reg
+    Chart -->|"валидация типа"| Reg
+    AIService -->|"запрос к модели"| LLM
+
+    Routes --> Storage
+    Runtime --> Storage
+    FileService --> Storage
+    Chart --> Storage
+    Report --> Storage
 ```
+
+- **Registries** — единый источник истины действий и графиков; модель не
+  может вернуть действие или график, отсутствующий в реестре.
+- **RuntimeConfig** — операторские параметры в `storage/config.json`
+  (mtime-кеш + write-lock); правки через `/admin` применяются на следующем
+  запросе без рестарта.
+- **AIService** — мультипровайдерный; маршрутизация по `auth_mode` пресета
+  (OpenAI SDK путь / GigaChat-адаптер).
 
 ---
 
-## 2. Слои
+## 🧩 2. Слои
 
 | Слой | Назначение | Ключевые файлы |
 |------|------------|----------------|
@@ -37,17 +104,17 @@ AIService ──читает реестры──► registries (ACTION_TYPES, C
 | **Prompts** | Версионированные промпты | `prompts/v1/system.md`, `app/services/prompt_loader.py` |
 | **Registries** | Единый источник истины действий/графиков | `app/services/registries.py` |
 | **Templates** | Jinja2 + HTMX | `templates/` |
-| **Storage** | Загрузки, артефакты, runtime-config | `storage/` (volume) |
+| **Storage** | Загрузки, артефакты, runtime-конфиг | `storage/` (volume) |
 
 ---
 
-## 3. Конфигурация: три источника истины, без дублирования
+## 🔧 3. Конфигурация: три источника истины, без дублирования
 
 Приложение строго разделяет три класса параметров, у каждого — единственный
 источник истины (SSOT). Перекрытия и дублирование умолчаний между слоями
 отсутствуют намеренно.
 
-### Секреты и bootstrap — `.env` (`Settings`, рестарт)
+### 🔐 3.1. Секреты и bootstrap — `.env` (`Settings`, рестарт)
 
 `app/core/config.py` — Pydantic `BaseSettings`. Здесь живут **только** параметры,
 которыми реально управляет окружение процесса:
@@ -62,7 +129,7 @@ AIService ──читает реестры──► registries (ACTION_TYPES, C
 
 Все они требуют рестарта процесса. Операторских параметров в `.env` НЕТ.
 
-### Операторские параметры — `storage/config.json` (`RuntimeConfig`, без рестарта)
+### 🗂️ 3.2. Операторские параметры — `storage/config.json` (`RuntimeConfig`, без рестарта)
 
 `app/services/runtime_config.py` — единый SOT операторских параметров.
 JSON-файл + mtime-кеш + `threading.Lock`:
@@ -110,7 +177,7 @@ JSON-файл + mtime-кеш + `threading.Lock`:
 > иное значение. Оператор, явно задавший температуру в `/admin`, получает
 > `has()=True` — она отправляется.
 
-### Системный промпт — файл `prompts/v1/system.md` (`PromptLoader`, без рестарта)
+### 📝 3.3. Системный промпт — файл `prompts/v1/system.md` (`PromptLoader`, без рестарта)
 
 Единый SOT текста промпта — сам файл (не config.json). Чтение с mtime-кешем;
 оператор правит его через `/admin` (POST `/admin/prompt` пишет в файл) или
@@ -124,7 +191,7 @@ JSON-файл + mtime-кеш + `threading.Lock`:
 
 ---
 
-## 4. Реестры — единый источник истины
+## 🗂️ 4. Реестры — единый источник истины
 
 `app/services/registries.py`:
 
@@ -141,9 +208,11 @@ CHART_TYPES  = ("histogram", "bar", "line", "pie")
 - fallback-детекция типа графика в `_detect_chart_type`;
 - help-сообщение в чате.
 
-Следствие: модель **не может** вернуть действие или график, который приложение не умеет исполнять. Добавление нового графика — одна строка в реестре + реализация в `chart_service`.
+Следствие: модель **не может** вернуть действие или график, который приложение
+не умеет исполнять. Добавление нового графика — одна строка в реестре +
+реализация в `chart_service`.
 
-### Реестр пресетов провайдеров (`PROVIDER_PRESETS`)
+### 🔌 4.1. Реестр пресетов провайдеров (`PROVIDER_PRESETS`)
 
 Тот же файл `registries.py` хранит пресеты провайдеров для `/admin`. Каждый
 пресет: `label`, `provider_name`, `base_url`, `default_model`,
@@ -151,7 +220,7 @@ CHART_TYPES  = ("histogram", "bar", "line", "pie")
 `yandex_folder`), опц. `token_url`/`scope` для GigaChat. `PROVIDER_ORDER` —
 порядок чипов в UI; `PRESET_FIELD_MAP` — отображение runtime-ключей на поля
 пресета (применение пресета пишет `provider` + 4 поля). Значения сверены с
-официальной документацией провайдеров (см. `docs/external-providers.md`).
+официальной документацией провайдеров (см. [`EXTERNAL_PROVIDERS.md`](EXTERNAL_PROVIDERS.md)).
 
 | Пресет | auth_mode | Секрет | structured_output | Код-путь |
 |--------|-----------|--------|-------------------|----------|
@@ -162,7 +231,7 @@ CHART_TYPES  = ("histogram", "bar", "line", "pie")
 
 ---
 
-## 5. AI-слой (AIService)
+## 🤖 5. AI-слой (AIService)
 
 `app/services/ai_service.py` — мультипровайдерный. Провайдер определяется
 runtime-ключом `provider` (пресет); `AIService` маршрутизирует запрос по
@@ -175,10 +244,9 @@ runtime-ключом `provider` (пресет); `AIService` маршрутизи
   подстановка `<folder_id>` в имя модели (`_effective_model`).
 - **GigaChat путь** (`gigachat`): `app/services/gigachat_adapter.py` — прямой HTTP,
   OAuth-обмен `GIGACHAT_AUTH_KEY` → access token **per-request** (refresh скрыт,
-  ручного обновления не требуется; подход заимствован из AI Curator). Без
-  structured_output — ответ разбирается устойчивым парсером free-text.
-  Мультимедийные блоки (изображения) сглаживаются в текст (`GigaChat` не
-  поддерживает `image_url` в нашем контракте).
+  ручного обновления не требуется). Без structured_output — ответ разбирается
+  устойчивым парсером free-text. Мультимедийные блоки (изображения) сглаживаются
+  в текст (`GigaChat` не поддерживает `image_url` в нашем контракте).
 
 Общие свойства:
 
@@ -195,22 +263,28 @@ runtime-ключом `provider` (пресет); `AIService` маршрутизи
 
 ---
 
-## 6. Промпты
+## 📝 6. Промпты
 
 `prompts/v1/system.md` — системный промпт с плейсхолдерами:
 
-| Пласхолдер | Значение |
+| Плейсхолдер | Значение |
 |------------|----------|
 | `{{specialization}}` | `runtime.assistant_specialization` |
 | `{{provider_attribution}}` | ` от {provider_name}` либо пусто (нейтрально) |
 
-`PromptLoader` кеширует по mtime — правка файла применяется в runtime. Версионирование через каталог (`v1/`) позволяет переключать версии без правки кода.
+`PromptLoader` кеширует по mtime — правка файла применяется в runtime.
+Версионирование через каталог (`v1/`) позволяет переключать версии без правки кода.
 
-> Промпт нейтрален по провайдеру: явное упоминание OpenAI отсутствует. При `provider_name=null` контент не содержит имени провайдера — корректно для любого провайдера (GigaChat, YandexGPT и т.п.).
+> Промпт нейтрален по провайдеру: явное упоминание OpenAI отсутствует. При
+> `provider_name=null` контент не содержит имени провайдера — корректно для
+> любого провайдера (GigaChat, YandexGPT и т.п.).
+
+Подробно структура промпта и валидация ответа описаны в
+[`PROMPT_ARCHITECTURE.md`](PROMPT_ARCHITECTURE.md).
 
 ---
 
-## 7. Оркестрация диалога (ChatService)
+## 💬 7. Оркестрация диалога (ChatService)
 
 `app/services/chat_service.py`:
 
@@ -222,30 +296,35 @@ runtime-ключом `provider` (пресет); `AIService` маршрутизи
 6. Сохранить разговор в JSON.
 7. При ошибке модели — fallback к локальной обработке (`_handle_local_prompt`).
 
-Файл должен быть загружен **в чат** (`/chat/{id}/message` с `data_file`), чтобы стать активным. Standalone `/upload` создаёт preview, но не привязывает файл к разговору.
+Файл должен быть загружен **в чат** (`/chat/{id}/message` с `data_file`), чтобы
+стать активным. Standalone `/upload` создаёт preview, но не привязывает файл
+к разговору.
 
 ---
 
-## 8. Графики (ChartService)
+## 📊 8. Графики (ChartService)
 
 `app/services/chart_service.py` — matplotlib, типы из `CHART_TYPES`:
 
 - `histogram`, `bar`, `line` — исходная реализация.
-- `pie` (новый) — для таблиц: сумма числовой колонки по категориям (топ-10, доли %); для изображений: доли средних по каналам.
+- `pie` — для таблиц: сумма числовой колонки по категориям (топ-10, доли %);
+  для изображений: доли средних по каналам.
 
-Валидация: `if chart_type not in CHART_TYPES_SET: raise`. Артефакты — PNG в `storage/outputs/`.
+Валидация: `if chart_type not in CHART_TYPES_SET: raise`. Артефакты — PNG в
+`storage/outputs/`.
 
 ---
 
-## 9. Админка оператора (`/admin`)
+## 🎛️ 9. Админка оператора (`/admin`)
 
 `app/routes/admin.py` + `templates/admin.html`:
 
-- Доступ: HTTP Basic (пользователь `admin`, пароль = `ADMIN_TOKEN`). Если `ADMIN_TOKEN` не задан — `/admin` отключён (403).
+- Доступ: HTTP Basic (пользователь `admin`, пароль = `ADMIN_TOKEN`). Если
+  `ADMIN_TOKEN` не задан — `/admin` отключён (403).
 - **Двухколоночная раскладка**: слева — системный промпт (ядро задачи, во всю
   высоту), справа — управления. Статистика использования — компактной полосой
-  сверху. Тултипы на лейблах параметров (чистый CSS, паттерн AI Curator):
-  наведите мышь на название параметра — появится подробный комментарий.
+  сверху. Тултипы на лейблах параметров (чистый CSS): наведите мышь на
+  название параметра — появится подробный комментарий.
 - **Секция «Провайдер»**: чипы пресетов (OpenAI / GigaChat / YandexGPT / Свой);
   клик применяет пресет (POST `/admin/provider` — перерисовывает секцию с
   активным чипом и обновлёнными полями). Под чипами — 4 редактируемых поля
@@ -257,11 +336,11 @@ runtime-ключом `provider` (пресет); `AIService` маршрутизи
 - POST `/admin/test` — диагностический пинг текущего провайдера (без записи в usage).
 - POST `/admin/prompt` — сохранить системный промпт в файл `prompts/v1/system.md`.
 
-Применятеся на следующем запросе без рестарта — доказано в работающем контейнере.
+Применяется на следующем запросе без рестарта — доказано в работающем контейнере.
 
 ---
 
-## 10. Развёртывание
+## 🚀 10. Развёртывание
 
 Два режима (см. [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md)):
 
@@ -270,10 +349,26 @@ runtime-ключом `provider` (пресет); `AIService` маршрутизи
 | **Production** | `docker-compose.yml` | эксплойт | пересборка | `/admin` или `storage/config.json` (без рестарта) |
 | **Dev/operator** | `+ docker-compose.override.yml` | разработка/оператор | mount + `--reload` (без пересборки) | `/admin` или файл (без рестарта) |
 
-`storage/` — volume (переживает пересборку); содержит `config.json` (runtime-config), `uploads/`, `outputs/`, `chats/`.
+`storage/` — volume (переживает пересборку); содержит `config.json`
+(runtime-config), `uploads/`, `outputs/`, `chats/`.
 
 ---
 
-## 11. Безопасность
+## 🔐 11. Безопасность
 
-См. [`SECURITY_NOTES.md`](SECURITY_NOTES.md): секреты только в `.env`, `.env` исключён из образа (проверено), `/admin` за HTTP Basic, публичная документация самодостаточна.
+См. [`SECURITY_NOTES.md`](SECURITY_NOTES.md): секреты только в `.env`, `.env`
+исключён из образа (проверено), `/admin` за HTTP Basic, публичная документация
+самодостаточна.
+
+---
+
+## 📚 12. Связанные документы
+
+- [🏠 `../README.md`](../README.md) — главная страница проекта.
+- [📝 `PROMPT_ARCHITECTURE.md`](PROMPT_ARCHITECTURE.md) — структура промпта, плейсхолдеры, валидация ответа.
+- [🔌 `API_CONTRACT.md`](API_CONTRACT.md) — контракт HTTP-эндпоинтов.
+- [🤖 `EXTERNAL_PROVIDERS.md`](EXTERNAL_PROVIDERS.md) — параметры OpenAI-совместимых провайдеров.
+- [🧪 `TESTING.md`](TESTING.md) — стратегия тестирования.
+- [🎛️ `OPERATOR_GUIDE.md`](OPERATOR_GUIDE.md) — управление параметрами через `/admin`.
+- [🚀 `DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md) — воспроизводимое развёртывание.
+- [📊 `PROJECT_STATE.md`](PROJECT_STATE.md) — паспорт состояния проекта.

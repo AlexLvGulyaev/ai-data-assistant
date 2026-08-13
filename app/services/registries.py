@@ -95,7 +95,7 @@ CHART_TYPE_QUICK_PROMPTS: dict[str, str] = {
 # Поля `base_url`/`default_model` пресета пишет операторский выбор в
 # `config.json` (ключи `openai_base_url`/`openai_model` — исторический префикс,
 # фактически это generic endpoint/model). Значения сверены с официальной
-# документацией провайдеров (см. docs/external-providers.md).
+# документацией провайдеров (см. docs/EXTERNAL_PROVIDERS.md).
 PROVIDER_PRESETS: dict[str, dict[str, Any]] = {
     "openai": {
         "label": "OpenAI",

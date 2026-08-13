@@ -1,4 +1,4 @@
-# Data Assistant · PROJECT_STATE
+# 📊 Data Assistant · PROJECT_STATE
 
 **Проект:** ai-data-assistant
 **Дата создания:** 2026-08-12
@@ -7,7 +7,7 @@
 
 ---
 
-## 1. Project Summary
+## 📝 1. Project Summary
 
 AI Data Assistant — веб-приложение (FastAPI + Jinja2 + HTMX) для анализа данных в чате. Пользователь загружает CSV/Excel/JSON или изображение и общается с AI-ассистентом, который планирует действия (анализ, график, отчёт, сводка) и исполняет их локально. Графики (histogram/bar/line/pie) и DOCX-отчёты сохраняются как артефакты и доступны из чата.
 
@@ -27,7 +27,7 @@ AI Data Assistant — веб-приложение (FastAPI + Jinja2 + HTMX) дл
 
 ---
 
-## 2. Current Status
+## 🚦 2. Current Status
 
 **Стадия:** MVP готов, протестирован end-to-end в Docker (production-режим). Deployment Validation пройдена в чистом окружении — все шаги DEPLOYMENT_GUIDE воспроизведены, система работоспособна.
 
@@ -48,13 +48,13 @@ AI Data Assistant — веб-приложение (FastAPI + Jinja2 + HTMX) дл
 
 ---
 
-## 3. Market Validation
+## 📈 3. Market Validation
 
 Учебный проект. Коммерческая валидация не проводилась. Архитектура (провайдер-портабельность, runtime-конфиг оператора, реестры) переиспользуема в продуктовых кейсах анализа данных.
 
 ---
 
-## 4. Commercial Assessment
+## 💰 4. Commercial Assessment
 
 | Фактор | Оценка |
 |--------|--------|
@@ -64,7 +64,7 @@ AI Data Assistant — веб-приложение (FastAPI + Jinja2 + HTMX) дл
 
 ---
 
-## 5. Key Technology Areas
+## 🛠️ 5. Key Technology Areas
 
 | Компетенция | Статус |
 |-------------|--------|
@@ -78,13 +78,13 @@ AI Data Assistant — веб-приложение (FastAPI + Jinja2 + HTMX) дл
 
 ---
 
-## 6. Decision
+## ✅ 6. Decision
 
 Проект завершён как портфельный актив. Архитектурные улучшения A–G и вариант 3 реализованы в полном объёме («по-максимуму»). Дальнейшее развитие — опционально (декларативный движок графиков — вариант 4 — отложен).
 
 ---
 
-## 7. Next Steps
+## 🧭 7. Next Steps
 
 - [ ] (опционально) Вариант 4 — декларативный движок графиков (chart spec как данные).
 - [ ] (роадмап) Реестры агента (`ACTION_TYPES`, `CHART_TYPES` + лейблы/подсказки) вынести из хардкода (`app/services/registries.py`) в редактируемые runtime-параметры админки. Сейчас реестры code-defined (добавление типа графика требует записи в `CHART_TYPES` + реализации рендера в `ChartService`); в админке они показаны read-only секцией «Реестры агента» как движение в нужном направлении. Полный вынос требует: (1) хранения реестра в `storage/config.json`, (2) generic-рендера графиков по декларативному spec (Вариант 4), (3) загрузки enum structured output и `available_actions` из runtime-реестра в `AIService`, (4) UI редактирования в `/admin`.
@@ -93,7 +93,7 @@ AI Data Assistant — веб-приложение (FastAPI + Jinja2 + HTMX) дл
 
 ---
 
-## 8. Status History
+## 📜 8. Status History
 
 | Дата | Статус | Комментарий |
 |------|--------|-------------|

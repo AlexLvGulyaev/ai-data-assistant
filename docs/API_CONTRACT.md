@@ -1,4 +1,4 @@
-# Data Assistant · HTTP API Contract
+# 🔌 Data Assistant · HTTP API Contract
 
 **Проект:** ai-data-assistant
 **Дата:** 2026-08-12
@@ -6,7 +6,7 @@
 
 ---
 
-## 1. Назначение и область
+## 🎯 1. Назначение и область
 
 Этот документ фиксирует **фактический** HTTP-интерфейс приложения, как он
 реализован в `app/routes/`. Назначение — быть справочником для сопровождения,
@@ -37,7 +37,7 @@
 
 ---
 
-## 2. Соглашения
+## 📐 2. Соглашения
 
 - Все пути — без префикса: роутеры подключаются в `app/main.py` через
   `app.include_router(...)` без `prefix`. Пути ниже — итоговые.
@@ -49,7 +49,7 @@
 
 ---
 
-## 3. Карта эндпоинтов
+## 🗺️ 3. Карта эндпоинтов
 
 ### Страницы и навигация (`app/routes/pages.py`)
 
@@ -104,13 +104,16 @@
 | GET | `/admin`, `/admin/` | — (Basic) | Панель операторских параметров (`admin.html` или паршл `partials/admin_content.html` для HTMX) | 200; 401 (неверный Basic); 403 (токен не задан) |
 | POST | `/admin/update` | `key: str`, `value: str` | Паршл `partials/admin_status.html` с подтверждением/ошибкой | 200; 401/403 |
 | POST | `/admin/reset` | `key: str` | Паршл `partials/admin_status.html` (сброс к умолчанию) | 200; 401/403 |
+| POST | `/admin/provider` | `preset: str` | Паршл секции «Провайдер» с активным чипом и обновлёнными полями | 200; 401/403 |
+| POST | `/admin/test` | — | Паршл `partials/admin_status.html` с результатом пинга провайдера (модель, латентность, ошибка) | 200; 401/403 |
+| POST | `/admin/prompt` | `prompt: str` | Паршл `partials/admin_status.html` — промпт сохранён в файл `prompts/v1/system.md` | 200; 401/403 |
 
 HTMX-цель подмены статуса — `#admin-status`. После `update`/`reset` inline-JS
 обновляет отображение текущего значения параметра в карточке.
 
 ---
 
-## 4. Контракт ответа модели (structured output)
+## 🤖 4. Контракт ответа модели (structured output)
 
 Когда `structured_output` включён (runtime-параметр, по умолчанию `true`),
 запрос к модели отправляется с `response_format = {type: "json_schema",
@@ -167,7 +170,7 @@ json_schema: {...}}` (strict). Схема генерируется из реес
 
 ---
 
-## 5. Runtime-контракт оператора
+## ⚙️ 5. Runtime-контракт оператора
 
 Операторские параметры живут в `storage/config.json` (путь —
 `RUNTIME_CONFIG_PATH`, по умолчанию). Чтение — с mtime-кешем: правка файла
@@ -176,15 +179,25 @@ json_schema: {...}}` (strict). Схема генерируется из реес
 
 ### `RUNTIME_KEYS`
 
-```
-assistant_specialization   # роль в системном промпте
-provider_name              # отображаемое имя провайдера (пусто = нейтрально)
-openai_model               # имя модели
-openai_base_url            # OpenAI-совместимый endpoint
-structured_output          # bool — строгий json_schema или свободный ответ
-openai_max_history_messages
-max_file_size              # напр. "10MB"
-```
+| Ключ | Тип | Seeded | Назначение |
+|------|-----|--------|------------|
+| `assistant_specialization` | str | да | Роль в системном промпте (`{{specialization}}`) |
+| `provider` | str | да | Пресет провайдера (`openai`/`gigachat`/`yandex`/`custom`) |
+| `openai_model` | str | да | Имя модели (generic; для Yandex — URI с `<folder_id>`) |
+| `openai_base_url` | str | да | OpenAI-совместимый endpoint (generic) |
+| `structured_output` | bool | да | Строгий `json_schema` (true) или fallback-парсер (false) |
+| `openai_max_history_messages` | int | да | Сообщений истории в запросе |
+| `max_file_size` | str | да | Лимит файла (напр. `10MB`) |
+| `provider_name` | str\|null | **нет** (opt-in) | Имя провайдера в контенте (null = нейтрально) |
+| `openai_temperature` | float | **нет** (opt-in) | Температура; отправляется только если `has()=True` |
+| `openai_seed` | int\|null | **нет** (opt-in) | Seed; отправляется только если `has()=True` |
+| `yandex_folder_id` | str\|null | **нет** (opt-in) | Folder Yandex Cloud (только для пресета `yandex`) |
+
+> Opt-in ключи (`provider_name`, `openai_temperature`, `openai_seed`,
+> `yandex_folder_id`) не сеются при первом старте — `has()` возвращает `False`,
+> и параметр не отправляется в запрос. Это портабельность: модели вроде
+> `gpt-5-mini` отвергают явную температуру. Оператор, задавший значение в
+> `/admin`, получает `has()=True` — оно уходит в запрос.
 
 **Секреты (`OPENAI_API_KEY`, `ADMIN_TOKEN`) в runtime-конфиг НЕ входят** — они
 остаются bootstrap-параметрами `.env` (см. [`SECURITY_NOTES.md`](SECURITY_NOTES.md)).
@@ -194,7 +207,7 @@ max_file_size              # напр. "10MB"
 
 ---
 
-## 6. Модели данных (память, не эндпоинты)
+## 🧩 6. Модели данных (память, не эндпоинты)
 
 Для сопровождения — ключевые структуры, которыми оперируют сервисы
 (контракт приложения «под капотом»):
@@ -211,7 +224,7 @@ max_file_size              # напр. "10MB"
 
 ---
 
-## 7. Статус-коды — сводка
+## 📋 7. Статус-коды — сводка
 
 | Код | Когда |
 |-----|-------|
@@ -225,7 +238,7 @@ max_file_size              # напр. "10MB"
 
 ---
 
-## 8. Что НЕ входит в контракт
+## 🚫 8. Что НЕ входит в контракт
 
 Явно (чтобы избежать ложных ожиданий):
 
@@ -238,9 +251,10 @@ max_file_size              # напр. "10MB"
 
 ---
 
-## 9. Связанные документы
+## 📚 9. Связанные документы
 
-- [`ARCHITECTURE.md`](ARCHITECTURE.md) — как маршруты связаны с сервисами.
-- [`OPERATOR_GUIDE.md`](OPERATOR_GUIDE.md) — управление runtime-параметрами.
-- [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md) — развёртывание (включая публичный эндпоинт).
-- [`SECURITY_NOTES.md`](SECURITY_NOTES.md) — секреты, `/admin`, path traversal.
+- [🏗️ `ARCHITECTURE.md`](ARCHITECTURE.md) — как маршруты связаны с сервисами.
+- [📝 `PROMPT_ARCHITECTURE.md`](PROMPT_ARCHITECTURE.md) — структура промпта и контракт ответа.
+- [🎛️ `OPERATOR_GUIDE.md`](OPERATOR_GUIDE.md) — управление runtime-параметрами.
+- [🚀 `DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md) — развёртывание (включая публичный эндпоинт).
+- [🔐 `SECURITY_NOTES.md`](SECURITY_NOTES.md) — секреты, `/admin`, path traversal.

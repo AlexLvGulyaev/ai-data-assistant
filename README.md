@@ -1,148 +1,290 @@
-# Data Assistant
+# 💬 Data Assistant
 
-AI-чат для анализа данных на FastAPI + Jinja2 + HTMX. Загружаете CSV/Excel/JSON или изображение, общаетесь с ассистентом на естественном языке — он строит графики, считает метрики, собирает DOCX-отчёты и хранит артефакты. Работает с любым OpenAI-совместимым провайдером (OpenAI, GigaChat, YandexGPT и др.).
+⚡ **Загрузите файл — получите анализ, графики и DOCX-отчёт в чате с AI. Любой OpenAI-совместимый провайдер, смена без рестарта.**
 
-Подробная архитектура — в [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Инструкция по развёртыванию — в [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md). Управление параметрами оператором — в [`docs/OPERATOR_GUIDE.md`](docs/OPERATOR_GUIDE.md). Контракт HTTP-эндпоинтов — в [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md).
+Data Assistant — веб-приложение для анализа данных в формате чата. Пользователь загружает CSV/Excel/JSON или изображение и общается с AI-ассистентом на естественном языке; модель планирует действия, приложение исполняет их локально — строит графики, считает метрики, собирает DOCX-отчёты и хранит артефакты. Работает с любым OpenAI-совместимым провайдером (OpenAI, GigaChat, YandexGPT, «Свой»).
 
-> **Публичное демо (портфолио):** <https://data-assistant.alex-n8n.site> —
-> запущенный экземпляр за обратным прокси (HTTPS, Let's Encrypt). См.
-> [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md) §6.1.
+- Аналитик загружает `sample_sales.csv` и пишет «построй круговую выручки по категориям» — получает график в чате и скачивает PNG.
+- Оператор меняет провайдера (OpenAI → GigaChat) и системный промпт в `/admin` — следующий запрос идёт в новый провайдер, без пересборки и рестарта контейнера.
+- Заказчик нажимает «Создать DOCX» — получает отчёт с метриками и графиками, готовый документ, который можно сразу отдать клиенту.
+
+Data Assistant не строит дашборды 24/7, не хранит ваши данные в облаке и не привязывает к одному LLM-провайдеру. Артефактный конвейер (upload → анализ → 4 типа графиков → DOCX → скачивание) исполняется локально; модель только планирует.
+
+[▶️ Попробовать live demo](https://data-assistant.alex-n8n.site) · [💼 Бизнес-ценность](docs/BUSINESS_VALUE.md) · [🎬 Как это работает](docs/E2E_SCENARIOS.md)
 
 ---
 
-## Возможности
+## ▶️ Live Demo
+
+🌐 **Пользователю:** [▶️ Открыть веб-интерфейс](https://data-assistant.alex-n8n.site)
+
+Загрузите CSV или изображение и напишите запрос в чат — например «проанализируй файл» или «построй круговую диаграмму выручки по категориям». Ассистент сам выберет действие и вернёт результат в чат. Никакой регистрации и установки — нулевой порог входа.
+
+![Анализ файла: карточка статистики в чате](docs/screenshots/ADA_chat_analyze.png)
+
+Скриншоты, live demo и сквозные сценарии — в [`docs/SCREENSHOTS.md`](docs/SCREENSHOTS.md) и [`docs/E2E_SCENARIOS.md`](docs/E2E_SCENARIOS.md).
+
+---
+
+## ❓ Зачем нужен Data Assistant
+
+Команды, которым нужен быстрый взгляд на данные, сталкиваются с тремя типичными крайностями:
+
+| Подход | Ограничение |
+|--------|-------------|
+| **Ручной анализ в Excel/BI** | требует навыков и времени; каждый новый вопрос — заново строить график или сводную |
+| **Универсальный LLM-чат (ChatGPT и пр.)** | данные никуда не загружаются; модель «на глаз» выбирает колонки и не гарантирует воспроизводимый артефакт |
+| **Тяжёлая BI-платформа** | длинный setup, дашборды 24/7, привязка к вендору — избыточно для разового вопроса по файлу |
+
+**Data Assistant решает эту проблему**, разделяя ответственность:
+
+- **Модель планирует** — читает контекст файла и решает, какое действие выполнить (анализ, график, отчёт, сводка).
+- **Приложение исполняет локально** — метрики, графики и DOCX строятся детерминированно по реестру `ACTION_TYPES`/`CHART_TYPES`; модель не может вернуть действие, которого нет в системе.
+- **Артефакты скачиваются** — PNG-графики и DOCX-отчёты сохраняются в чате и доступны для скачивания.
+- **Провайдер портабелен** — пресеты OpenAI / GigaChat / YandexGPT / «Свой» в `/admin`; смена провайдера и промпта применяется на следующем запросе без рестарта.
+
+Больше о бизнес-ценности — в [`docs/BUSINESS_VALUE.md`](docs/BUSINESS_VALUE.md).
+
+---
+
+## 🎯 Для кого
+
+- Аналитики и продакт-менеджеры, которым нужен быстрый взгляд на CSV без разворачивания BI.
+- Операционные команды, делающие регулярные выгрузки и отчёты по файлам.
+- Консультанты и сейлз-команды, показывающие данные заказчику на живом демо.
+- Интеграторы, которым нужен портабельный AI-data-chat с любым OpenAI-совместимым провайдером.
+
+---
+
+## ✨ Ключевые возможности
 
 - **Чат с моделью** — ассистент читает контекст файла и сам решает, какое действие выполнить (анализ, график, отчёт, сводка).
-- **Загрузка файлов** — CSV, Excel (`.xlsx`/`.xls`), JSON, изображения (PNG/JPG/JPEG/BMP/GIF/WEBP).
-- **Графики** — `histogram`, `bar`, `line`, `pie` в PNG. Тип и колонки подбирает модель либо оператор.
-- **DOCX-отчёты** — отчёт по файлу с графиками и метриками, скачивается из чата.
-- **Провайдер-портабельность** — пресеты OpenAI / GigaChat (Сбер) / YandexGPT / «Свой» в `/admin`: одним кликом заполняются endpoint, модель, имя и structured_output. GigaChat работает через OAuth-адаптер (refresh токена под капотом), YandexGPT — через folder_id + заголовок `x-folder-id`. Смена провайдера — без рестарта.
-- **Runtime-конфиг оператора** — специализацию, модель, лимиты и другие параметры меняет оператор через веб-админку `/admin` **без пересборки и рестарта контейнера**. Тултипы на параметрах с подробными комментариями.
-- **Structured output** — строгий контракт ответа модели через `json_schema` (отключается для провайдеров без поддержки).
+- **Файлы** — CSV, Excel (`.xlsx`/`.xls`), JSON, изображения (PNG/JPG/JPEG/BMP/GIF/WEBP).
+- **Графики** — `histogram`, `bar`, `line`, `pie` в PNG; тип и колонки подбирает модель либо оператор чипом.
+- **DOCX-отчёты** — отчёт по файлу с метриками и графиками, скачивается из чата.
+- **Markdown-сводки** — выводы сохраняются в `.md` для дальнейшей автоматизации.
+- **Мультипровайдерность** — пресеты OpenAI / GigaChat (Сбер, OAuth-адаптер) / YandexGPT (`folder_id` + `x-folder-id`) / «Свой» в `/admin`; одним кликом заполняются endpoint, модель, имя и `structured_output`. Смена без рестарта.
+- **Runtime-конфиг оператора** — специализацию, модель, провайдер, температуру, seed, специализацию и промпт меняют через веб-админку `/admin` без пересборки и рестарта контейнера.
+- **Structured output + fallback** — строгий контракт ответа через `json_schema`; для провайдеров без поддержки — устойчивый парсер free-text (GigaChat, YandexGPT).
+- **Статистика использования** — дашборд запросов, ошибок и токенов в `/admin` для контроля стоимости LLM.
+- **Честные границы** — `/admin` за HTTP Basic; публичный Web UI без аутентификации; секреты только в `.env`.
 
 ---
 
-## Быстрый старт (Docker)
+## 🏗️ Краткий обзор архитектуры
+
+```mermaid
+flowchart TB
+    subgraph "Внешние пользователи"
+        User[Пользователь]
+        Operator[Оператор]
+    end
+
+    subgraph "Data Assistant"
+        WebUI[Веб-интерфейс: чат + правый рельс]
+        Admin[Консоль оператора /admin]
+
+        subgraph "Backend — FastAPI"
+            Routes[Routes: pages/chat/upload/actions/admin]
+            Chat[ChatService — оркестрация диалога]
+            AIService[AIService — Chat Completions]
+            FileService[FileService — загрузка, чтение]
+            Analysis[AnalysisService — метрики]
+            Chart[ChartService — графики]
+            Report[ReportService — DOCX]
+            Runtime[RuntimeConfig — config.json + mtime-кеш]
+            Prompt[PromptLoader — prompts/v1]
+            Reg[(Registries — ACTION/CHART_TYPES)]
+        end
+    end
+
+    subgraph "Инфраструктура"
+        LLM[LLM Provider — OpenAI / GigaChat / YandexGPT]
+        Storage[(storage/ — uploads, outputs, chats, config.json)]
+    end
+
+    User --> WebUI
+    Operator --> Admin
+
+    WebUI --> Routes
+    Admin --> Routes
+    Routes --> Chat
+    Chat --> AIService
+    Chat --> FileService
+    Chat --> Analysis
+    Chat --> Chart
+    Chat --> Report
+
+    AIService --> Runtime
+    AIService --> Prompt
+    AIService --> Reg
+    Chart --> Reg
+    AIService --> LLM
+
+    Routes --> Storage
+    Runtime --> Storage
+```
+
+- **Registries** — единый источник истины действий и графиков; модель не может вернуть то, чего нет в реестре.
+- **RuntimeConfig** — операторские параметры в `storage/config.json` (mtime-кеш + write-lock); правки через `/admin` применяются на следующем запросе без рестарта.
+- **AIService** — мультипровайдерный; маршрутизация по `auth_mode` пресета (OpenAI SDK путь / GigaChat-адаптер).
+
+Подробнее — в [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+---
+
+## 🌐 Публичные точки входа
+
+| Роль | Сервис | Адрес | Назначение |
+|------|--------|-------|------------|
+| Пользователь | Веб-интерфейс | [data-assistant.alex-n8n.site](https://data-assistant.alex-n8n.site) | Чат с ассистентом, загрузка файлов, графики, отчёты |
+| Оператор | Консоль `/admin` | [data-assistant.alex-n8n.site/admin](https://data-assistant.alex-n8n.site/admin) | Runtime-параметры, промпт, провайдер, статистика |
+
+> 🔓 **Вход оператора:** HTTP Basic (`admin` / `ADMIN_TOKEN` из `.env`). Публичный чат — без аутентификации.
+
+---
+
+## 📚 Документация
+
+### Для заказчиков и менеджеров
+
+| Документ | Описание |
+|----------|----------|
+| [💼 `docs/BUSINESS_VALUE.md`](docs/BUSINESS_VALUE.md) | Бизнес-проблема, решение, эффект, выгода |
+| [🎬 `docs/E2E_SCENARIOS.md`](docs/E2E_SCENARIOS.md) | Сквозные бизнес-сценарии (чат + админка) |
+| [🖼️ `docs/SCREENSHOTS.md`](docs/SCREENSHOTS.md) | Галерея экранов с подписями |
+| [📊 `docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md) | Паспорт состояния проекта |
+
+### Для пользователей и операторов
+
+| Документ | Описание |
+|----------|----------|
+| [📖 `docs/USER_GUIDE.md`](docs/USER_GUIDE.md) | Как пользоваться чатом — файлы, графики, отчёты |
+| [🎛️ `docs/OPERATOR_GUIDE.md`](docs/OPERATOR_GUIDE.md) | Управление параметрами через `/admin` |
+| [🔐 `docs/SECURITY_NOTES.md`](docs/SECURITY_NOTES.md) | Секреты, границы, безопасность |
+
+### Для инженеров и интеграторов
+
+| Документ | Описание |
+|----------|----------|
+| [🏗️ `docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Архитектура, слои, реестры, runtime-конфиг, mermaid |
+| [📝 `docs/PROMPT_ARCHITECTURE.md`](docs/PROMPT_ARCHITECTURE.md) | Структура промпта, плейсхолдеры, валидация ответа |
+| [🔌 `docs/API_CONTRACT.md`](docs/API_CONTRACT.md) | Контракт HTTP-эндпоинтов (Web UI as-is) |
+| [🤖 `docs/EXTERNAL_PROVIDERS.md`](docs/EXTERNAL_PROVIDERS.md) | Параметры OpenAI-совместимых провайдеров |
+| [🧪 `docs/TESTING.md`](docs/TESTING.md) | Стратегия тестирования |
+| [📋 `docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | План реализации |
+| [🚀 `docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md) | Воспроизводимое развёртывание (Source of Truth) |
+| [✅ `docs/DEPLOYMENT_VALIDATION_REPORT.md`](docs/DEPLOYMENT_VALIDATION_REPORT.md) | Отчёт валидации в чистом окружении |
+
+---
+
+## ✅ Статус проекта
+
+Реализованы все ключевые компоненты: чат с моделью, загрузка файлов (CSV/Excel/JSON/изображения), 4 типа графиков, DOCX-отчёты, markdown-сводки, мультипровайдерность (OpenAI / GigaChat / YandexGPT / «Свой»), runtime-конфиг оператора без рестарта, structured output + fallback-парсер, статистика использования, публичный HTTPS-эндпоинт.
+
+**Deployment Validation:** пройдена — воспроизведение с нуля по `DEPLOYMENT_GUIDE` в чистом окружении, отчёт в [`docs/DEPLOYMENT_VALIDATION_REPORT.md`](docs/DEPLOYMENT_VALIDATION_REPORT.md).
+
+Текущее состояние и следующий шаг — в [📊 `docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md).
+
+---
+
+## 🛠️ Технологии
+
+- **Backend** — FastAPI, Python 3.12.
+- **Frontend** — Jinja2 + HTMX (без SPA-сборки).
+- **Графики** — matplotlib.
+- **Отчёты** — python-docx.
+- **AI** — OpenAI SDK + GigaChat-адаптер (OAuth, прямой HTTP).
+- **Deploy** — Docker Compose, Traefik (обратный прокси, HTTPS).
+
+---
+
+## 🚀 Быстрый запуск
 
 ```bash
-# 1. Подготовьте .env
+# 1. Подготовьте .env (секреты и bootstrap)
 cp .env.example .env
 #    заполните OPENAI_API_KEY и ADMIN_TOKEN
-#    (GIGACHAT_AUTH_KEY — только если будете использовать пресет GigaChat)
+#    (GIGACHAT_AUTH_KEY — только для пресета GigaChat)
 
-# 2. Запустите (production-режим — сборка образа)
-docker compose -f docker-compose.yml up -d --build
+# 2. Запустите локально (dev-режим — публикует порт, live reload)
+docker compose up -d --build
 
 # 3. Откройте http://localhost:8000
 ```
 
-Для разработки/оператора (монтирование исходников + live reload, без пересборки при правках кода):
+| Сервис | URL |
+|--------|-----|
+| Веб-интерфейс | http://localhost:8000 |
+| Консоль оператора | http://localhost:8000/admin |
+| Health | http://localhost:8000/health |
 
-```bash
-docker compose up          # авто-применяет docker-compose.override.yml
-```
-
-Полный процесс развёртывания, переменные окружения и оба режима — в [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md).
-
----
-
-## Локальный запуск без Docker
-
-```bash
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env               # заполните OPENAI_API_KEY и ADMIN_TOKEN
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+> Production (без публикации порта, за обратным прокси) и полный процесс развёртывания — в [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md).
 
 ---
 
-## Переменные окружения
+## ⚠️ Ограничения демо
 
-В `.env` живут **только секреты и bootstrap** (хост/порт, логирование, пути).
-Операторские параметры (модель, endpoint, специализация, температура, лимиты
-файла и др.) единственным источником истины имеют `storage/config.json`
-(начальные значения сеются из хардкоженных умолчаний при первом старте) —
-меняются через `/admin` без рестарта. Полный список — в [`.env.example`](.env.example)
-и [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md#переменные-окружения).
-
-| Переменная | Назначение | Режим изменения |
-|------------|------------|-----------------|
-| `OPENAI_API_KEY` | Ключ API провайдера: Bearer для OpenAI/YandexGPT/«Свой» (для Yandex — API-ключ Yandex) (секрет) | `.env` (рестарт) |
-| `GIGACHAT_AUTH_KEY` | Authorization key Сбер — только для пресета GigaChat (секрет) | `.env` (рестарт) |
-| `GIGACHAT_CA_BUNDLE` | Опц. путь к CA-bundle для TLS GigaChat (сертификат Минцифры) | `.env` (рестарт) |
-| `ADMIN_TOKEN` | Доступ к `/admin` (секрет) | `.env` (рестарт) |
-| `APP_HOST` / `APP_PORT` | Хост/порт | `.env` (рестарт) |
-| `LOG_LEVEL` | Уровень логирования | `.env` (рестарт) |
-| Пути (`UPLOAD_DIR`, `PROMPTS_DIR`, `RUNTIME_CONFIG_PATH`, …) | Каталоги и файлы | `.env` (рестарт) |
-| Провайдер (пресет), модель, endpoint, температура, специализация, лимиты, Yandex folder_id, … | Операторские параметры | `storage/config.json` → `/admin` (без рестарта) |
+- **Демонстрационный MVP**: упрощённые сценарии; локальный артефактный конвейер (upload → анализ → графики → DOCX → скачивание) исполняется детерминированно, LLM-контур требует реальных токенов провайдера.
+- Реестры действий и графиков — кодовые (`app/services/registries.py`); вынос в редактируемые параметры — в roadmap.
+- YandexGPT: код-путь верифицирован (routing + заголовки), end-to-end требует API-ключа Yandex и `folder_id`.
+- Перед production рекомендуется добавить корпоративную аутентификацию `/admin`, бэкапы `storage/`, мониторинг и CI/CD.
 
 ---
 
-## Структура проекта
+## 🔑 Ключевые принципы
+
+1. **Модель планирует, приложение исполняет** — метрики, графики и DOCX строятся локально по реестру; модель не может вернуть действие, которого нет в системе.
+2. **Registries — Source of Truth** — `ACTION_TYPES`/`CHART_TYPES` едины для валидации, JSON-схемы и UI.
+3. **Три источника истины, без дублирования** — секреты в `.env`, операторские параметры в `storage/config.json`, промпт в `prompts/v1/system.md`.
+4. **Runtime-конфиг без рестарта** — правки через `/admin` применяются на следующем запросе (mtime-кеш + write-lock).
+
+---
+
+## 📁 Структура проекта
 
 ```
-.
-├── app/
-│   ├── core/config.py            # Pydantic Settings, bootstrap-параметры
-│   ├── routes/                   # pages, chat, upload, actions, admin
-│   ├── services/
-│   │   ├── ai_service.py         # Chat Completions + structured output
-│   │   ├── chat_service.py       # Оркестрация диалога и действий
-│   │   ├── chart_service.py      # Графики (histogram/bar/line/pie)
-│   │   ├── report_service.py     # DOCX-отчёты
-│   │   ├── file_service.py       # Загрузка, хранение, чтение данных
-│   │   ├── analysis_service.py   # Метрики по таблице
-│   │   ├── export_service.py     # Экспорт артефактов
-│   │   ├── prompt_loader.py      # Версионированные промпты (mtime-кеш)
-│   │   ├── registries.py         # ACTION_TYPES / CHART_TYPES — единый источник истины
-│   │   └── runtime_config.py     # Runtime-конфиг операторских параметров
+ai-data-assistant/
+├── README.md                      # Точка входа в проект
+├── docs/                          # Документация кейса
+│   ├── BUSINESS_VALUE.md          # Бизнес-ценность
+│   ├── E2E_SCENARIOS.md           # Сквозные бизнес-сценарии
+│   ├── SCREENSHOTS.md             # Галерея экранов
+│   ├── USER_GUIDE.md              # Руководство пользователя
+│   ├── OPERATOR_GUIDE.md          # Руководство оператора
+│   ├── ARCHITECTURE.md            # Архитектурные решения
+│   ├── PROMPT_ARCHITECTURE.md     # Структура промпта
+│   ├── API_CONTRACT.md            # Контракт HTTP-эндпоинтов
+│   ├── EXTERNAL_PROVIDERS.md      # Параметры провайдеров LLM
+│   ├── TESTING.md                 # Стратегия тестирования
+│   ├── IMPLEMENTATION_PLAN.md     # План реализации
+│   ├── DEPLOYMENT_GUIDE.md        # Развёртывание с нуля
+│   ├── DEPLOYMENT_VALIDATION_REPORT.md  # Отчёт валидации
+│   ├── PROJECT_STATE.md           # Паспорт состояния
+│   ├── SECURITY_NOTES.md          # Безопасность
+│   └── screenshots/               # Скриншоты интерфейса
+├── app/                           # Backend (FastAPI)
+│   ├── core/config.py             # Pydantic Settings, bootstrap
+│   ├── routes/                    # pages, chat, upload, actions, admin
+│   ├── services/                  # ai, chat, chart, report, file, analysis, …
 │   └── main.py
-├── prompts/v1/system.md          # Системный промпт с плейсхолдерами
-├── templates/                    # Jinja2: страницы + HTMX-паршлы + admin
-├── static/                       # CSS/JS
-├── examples/                     # sample_sales.csv, sample_chart_data.csv
-├── docs/                         # Документация
+├── prompts/v1/system.md           # Системный промпт (плейсхолдеры)
+├── templates/                     # Jinja2: страницы + HTMX-паршлы + admin
+├── static/                        # CSS/JS
+├── examples/                      # sample_sales.csv, sample_chart_data.csv
 ├── Dockerfile
-├── docker-compose.yml            # production (сборка)
-├── docker-compose.override.yml   # dev/operator (mount + --reload)
+├── docker-compose.yml             # production (сборка, без порта)
+├── docker-compose.override.yml    # dev/operator (порт + --reload)
 ├── requirements.txt
-├── .env.example
-└── README.md
+└── .env.example
 ```
 
----
-
-## Пример данных
-
-Используйте `examples/sample_sales.csv` (колонки `date, region, category, revenue, orders, margin`).
-
-Примеры запросов в чат:
-- «построй круговую диаграмму выручки по категориям»
-- «сделай столбчатую диаграмму заказов по регионам»
-- «линейный график выручки по датам»
-- «собери отчёт по файлу»
+> **Примечание:** внутренние материалы инженерной среды (история задач, черновики, вложения) хранятся вне публичного репозитория и не включены в структуру выше.
 
 ---
 
-## Документация
-
-- [`docs/BUSINESS_VALUE.md`](docs/BUSINESS_VALUE.md) — бизнес-ценность: позиционирование, количественные оценки, целевые заказчики, риски.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — архитектура, слои, реестры, runtime-конфиг.
-- [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) — контракт HTTP-эндпоинтов (Web UI as-is).
-- [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md) — воспроизводимое развёртывание (Source of Truth).
-- [`docs/OPERATOR_GUIDE.md`](docs/OPERATOR_GUIDE.md) — управление параметрами через `/admin`.
-- [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) — план реализации.
-- [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md) — паспорт состояния проекта.
-- [`docs/SECURITY_NOTES.md`](docs/SECURITY_NOTES.md) — секреты, границы, безопасность.
-- [`docs/DEPLOYMENT_VALIDATION_REPORT.md`](docs/DEPLOYMENT_VALIDATION_REPORT.md) — отчёт валидации в чистом окружении.
-- [`docs/E2E_SCENARIOS.md`](docs/E2E_SCENARIOS.md) — сквозные бизнес-сценарии (чат + админка) для ручного тестирования и демонстрации.
-- [`docs/SCREENSHOTS.md`](docs/SCREENSHOTS.md) — галерея экранов с подписями (Что показано / Роль / Почему важно).
-- [`docs/screenshots/MEDIA_INDEX.md`](docs/screenshots/MEDIA_INDEX.md) — каталог медиаматериалов (IMG-ID, схема нейминга, матрица использования).
-
----
-
-## Лицензия
+## 📄 Лицензия
 
 Учебный проект. Используйте и адаптируйте свободно.
+
+Проект разработан в инженерной среде AI Automation Portfolio Lab.
