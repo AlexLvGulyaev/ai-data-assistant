@@ -4,7 +4,7 @@
             {{ param.label }}
             {% if param.help %}<span class="admin-tooltip__text">{{ param.help }}</span>{% endif %}
         </h2>
-        <span class="admin-card__key">{{ param.key }}</span>
+        <span class="admin-card__key" title="{{ param.key }}">{{ param.key }}</span>
     </header>
 
     {% if param.kind == "bool" %}

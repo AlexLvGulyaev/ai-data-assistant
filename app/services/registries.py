@@ -25,6 +25,24 @@ ACTION_TYPES: tuple[str, ...] = (
 )
 ACTION_TYPES_SET: frozenset[str] = frozenset(ACTION_TYPES)
 
+# Русские лейблы и краткие описания действий для read-only отображения в админке
+# (функциональное ядро агента — что он умеет делать). Реестр действий пока
+# кодовый; вынос в редактируемые runtime-параметры — см. roadmap (PROJECT_STATE).
+ACTION_TYPE_LABELS_RU: dict[str, str] = {
+    "preview": "Предпросмотр файла",
+    "analyze": "Анализ данных",
+    "generate_chart": "Построить график",
+    "generate_report": "Сформировать отчёт (DOCX)",
+    "save_summary": "Сохранить выжимку",
+}
+ACTION_TYPE_HINTS_RU: dict[str, str] = {
+    "preview": "показать содержимое/структуру файла",
+    "analyze": "описательная статистика по таблице",
+    "generate_chart": "визуализация выбранной метрики",
+    "generate_report": "DOCX-отчёт по данным файла",
+    "save_summary": "сохранить выжимку диалога в storage",
+}
+
 # Разрешённые типы графиков (порядок важен для отображения в подсказках модели).
 CHART_TYPES: tuple[str, ...] = (
     "histogram",

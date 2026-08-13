@@ -13,6 +13,12 @@ from app.core.config import get_settings
 from app.services.ai_service import AIService
 from app.services.prompt_loader import PromptLoader
 from app.services.registries import (
+    ACTION_TYPE_HINTS_RU,
+    ACTION_TYPE_LABELS_RU,
+    ACTION_TYPES,
+    CHART_TYPE_HINTS,
+    CHART_TYPE_LABELS_RU,
+    CHART_TYPES,
     PRESET_FIELD_MAP,
     PROVIDER_ORDER,
     PROVIDER_PRESETS,
@@ -247,6 +253,12 @@ async def admin_panel(request: Request, _: None = Depends(_require_admin)):
         "usage": usage_service.as_dict(),
         "usage_path": str(usage_service.path),
         "provider_preset_map": PROVIDER_PRESETS,
+        "action_types": ACTION_TYPES,
+        "action_labels": ACTION_TYPE_LABELS_RU,
+        "action_hints": ACTION_TYPE_HINTS_RU,
+        "chart_types": CHART_TYPES,
+        "chart_labels": CHART_TYPE_LABELS_RU,
+        "chart_hints": CHART_TYPE_HINTS,
         "admin_enabled": True,
         "status_message": None,
         "status_kind": None,

@@ -87,6 +87,7 @@ AI Data Assistant — веб-приложение (FastAPI + Jinja2 + HTMX) дл
 ## 7. Next Steps
 
 - [ ] (опционально) Вариант 4 — декларативный движок графиков (chart spec как данные).
+- [ ] (роадмап) Реестры агента (`ACTION_TYPES`, `CHART_TYPES` + лейблы/подсказки) вынести из хардкода (`app/services/registries.py`) в редактируемые runtime-параметры админки. Сейчас реестры code-defined (добавление типа графика требует записи в `CHART_TYPES` + реализации рендера в `ChartService`); в админке они показаны read-only секцией «Реестры агента» как движение в нужном направлении. Полный вынос требует: (1) хранения реестра в `storage/config.json`, (2) generic-рендера графиков по декларативному spec (Вариант 4), (3) загрузки enum structured output и `available_actions` из runtime-реестра в `AIService`, (4) UI редактирования в `/admin`.
 - [ ] (опционально) Аутентификация пользователей чата (сейчас `/admin` защищён, чат — открыт).
 - [ ] (опционально) Persistent volume для `storage/` в production.
 

@@ -772,7 +772,14 @@ button,
     padding: 0.5rem 0.5rem 1rem;
     display: flex;
     flex-direction: column;
-    min-height: calc(100vh - 4rem);
+    /* ОПРЕДЕЛЁННАЯ высота (не min-height) — критично для flex-цепочки:
+       flex-контейнер с height:auto + min-height НЕ растит flex-children до
+       пола min-height (классическая ловушка), и textarea промпта коллапсирует
+       в ~1/3 панели в режимах <1181px, где page-frame — обычный блок. С
+       определённым height flex:1 form → layout → card → textarea транслирует
+       высоту корректно во ВСЕХ режимах. В ≥1181px media flex:1 1 auto всё
+       равно растит оболочку до page-frame (height служит flex-basis). */
+    height: calc(100vh - 8rem);
 }
 
 .admin-head {
@@ -1064,6 +1071,12 @@ button,
     flex-direction: column;
     gap: 0.7rem;
     min-width: 0;
+    /* Если макропанель + реестры не вмещаются по высоте — боковая колонка
+       скроллится сама, не выталкивая промпт. min-width:0 + min-height:0
+       позволяют ей сжиматься в grid-ячейке. */
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
 }
 
 /* Промпт-карточка занимает левую колонку целиком и тянется в высоту. */
@@ -1114,6 +1127,96 @@ button,
     display: flex;
     flex-direction: column;
     gap: 0.7rem;
+}
+
+/* Read-only секция «Реестры агента» — функциональное ядро (действия + типы
+   графиков). Кодовые реестры; показывают оператору, что умеет агент. */
+.admin-registries {
+    background: var(--panel-strong);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 0.6rem 0.7rem 0.65rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.admin-registries__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.admin-registries__head h2 {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.admin-registries__group h3 {
+    margin: 0 0 0.3rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-weight: 600;
+}
+
+.admin-reg__count {
+    font-size: 0.7rem;
+    color: var(--muted);
+    font-weight: 400;
+}
+
+.admin-registries__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+}
+
+.admin-registries__list li {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    line-height: 1.3;
+    min-width: 0;
+}
+
+.admin-reg__label {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.admin-reg__key {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    background: rgba(31, 40, 51, 0.05);
+    padding: 0.05rem 0.35rem;
+    border-radius: 5px;
+}
+
+.admin-reg__hint {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--muted);
+    font-size: 0.72rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Тултип на лейбле параметра (чистый CSS, паттерн AI Curator).
@@ -1169,23 +1272,34 @@ button,
 .admin-card--param {
     padding: 0.5rem 0.7rem 0.55rem;
     gap: 0.3rem;
+    min-width: 0;
 }
 
-/* Лейбл и программный ключ — друг под другом, чтобы ключ (например
-   openai_max_history_messages) помещался целиком, а не вытеснялся. */
+/* Лейбл и программный ключ — в ОДНОЙ строке (label слева, key справа),
+   чтобы сэкономить вертикаль и вместить макропанель + реестры без скролла.
+   Длинный ключ (openai_max_history_messages) обрезается многоточием; полный
+   ключ доступен через title при наведении. */
 .admin-card--param .admin-card__head {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.05rem;
+    gap: 0.4rem;
 }
 
 .admin-card--param .admin-card__head h2 {
     font-size: 0.88rem;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .admin-card--param .admin-card__key {
     font-size: 0.68rem;
-    word-break: break-all;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
 }
 
 .admin-card--param .admin-input {
