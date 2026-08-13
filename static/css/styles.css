@@ -1101,7 +1101,10 @@ button,
 
 .admin-card--prompt .admin-input--textarea {
     flex: 1 1 auto;
-    min-height: 280px;
+    /* Явная высота через viewport — не зависит от того, добрался ли flex-рост
+       до textarea. «Почти во всю высоту панели»: viewport минус шапка,
+       статистика, голова карточки и подсказка. */
+    min-height: calc(100vh - 300px);
 }
 
 /* Тултип на лейбле параметра (чистый CSS, паттерн AI Curator).
@@ -1244,14 +1247,10 @@ button,
         grid-template-columns: 1fr;
         grid-template-rows: auto;
     }
-    /* На узком экране промпт-карточка не должна отжирать всю высоту —
-       задаём разумную минимальную высоту, остальное идёт обычным скроллом. */
-    .admin-card--prompt {
-        flex: 0 0 auto;
-    }
+    /* Узкий экран: одна колонка, промпт сверху. Textarea всё равно
+       «почти во всю высоту» — параметры ниже, скроллом страницы. */
     .admin-card--prompt .admin-input--textarea {
-        min-height: 240px;
-        flex: 0 0 auto;
+        min-height: calc(100vh - 340px);
     }
 }
 

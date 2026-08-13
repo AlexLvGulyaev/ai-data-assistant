@@ -231,10 +231,12 @@ const setupAdmin = () => {
     setupAdminTooltips();
 };
 
+let adminTooltipsBound = false;
+
 const setupAdminTooltips = () => {
-    if (document.dataset.adminTooltipsBound === "1") return;
+    if (adminTooltipsBound) return;
     if (!document.getElementById("admin-settings-form")) return;
-    document.dataset.adminTooltipsBound = "1";
+    adminTooltipsBound = true;
 
     const tip = document.createElement("div");
     tip.id = "admin-tooltip-floating";
