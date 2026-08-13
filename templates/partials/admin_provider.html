@@ -9,7 +9,14 @@
             панели. Секреты — в .env (OPENAI_API_KEY для OpenAI/Yandex/Свой,
             GIGACHAT_AUTH_KEY для GigaChat).</span>
         </h2>
-        <span class="admin-card__key">provider · {{ provider }}</span>
+        <div class="admin-provider__head-right">
+            <span class="admin-card__key">provider · {{ provider }}</span>
+            <button class="secondary-btn admin-test-btn" type="button"
+                    hx-post="/admin/test"
+                    hx-target="#admin-status"
+                    hx-swap="innerHTML"
+                    hx-disabled-elt="this">Тест провайдера</button>
+        </div>
     </header>
 
     <div class="admin-presets">
@@ -31,13 +38,5 @@
         {% for param in provider_fields %}
         {% include "partials/admin_param_card.html" with context %}
         {% endfor %}
-    </div>
-
-    <div class="admin-provider__test">
-        <button class="secondary-btn" type="button"
-                hx-post="/admin/test"
-                hx-target="#admin-status"
-                hx-swap="innerHTML"
-                hx-disabled-elt="this">Тест провайдера</button>
     </div>
 </section>
