@@ -9,9 +9,9 @@
                 </p>
                 <div class="preview-meta">
                     {% if ai_enabled %}
-                        <span>OpenAI: {{ ai_model }}</span>
+                        <span>{{ ai_provider_name or 'AI' }}: {{ ai_model }}</span>
                     {% else %}
-                        <span>OpenAI не настроен</span>
+                        <span>Провайдер не настроен</span>
                     {% endif %}
                 </div>
             </div>

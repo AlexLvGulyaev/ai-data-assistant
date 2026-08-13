@@ -59,6 +59,7 @@ ADA_<context>_<description>.png
 | IMG-12 | `ADA_chat_multi_files.png` | chat | Раздел «Файлы в чате»: переключение контекста. |
 | IMG-13 | `ADA_chat_free_dialog.png` | chat | Свободный запрос: модель выбрала действие. |
 | IMG-14 | `ADA_chat_prompt_applied.png` | chat | Ответ с применённым новым промптом. |
+| IMG-14b | `ADA_chat_gigachat_fallback.png` | chat | Чат с GigaChat + structured_output=off: fallback-парсер. |
 
 ### Операторский контур (админка `/admin`)
 
@@ -96,6 +97,7 @@ ADA_<context>_<description>.png
 | IMG-12 | `ADA_chat_multi_files.png` | ✅ | §11 | — |
 | IMG-13 | `ADA_chat_free_dialog.png` | ✅ | §12 | ✅ |
 | IMG-14 | `ADA_chat_prompt_applied.png` | ✅ | §14 | — |
+| IMG-14b | `ADA_chat_gigachat_fallback.png` | ✅ | §12b | — |
 | IMG-15 | `ADA_admin_overview.png` | ✅ | §13 | ✅ |
 | IMG-16 | `ADA_admin_prompt_edit.png` | ✅ | §14 | — |
 | IMG-17 | `ADA_admin_model_swap.png` | ✅ | §15 | — |

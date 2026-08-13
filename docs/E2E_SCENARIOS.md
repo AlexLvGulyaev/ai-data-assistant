@@ -301,6 +301,42 @@ MIME-типом (`application/vnd.openxmlformats…`).
 
 ---
 
+## 🧩 12b. Чат с GigaChat + structured_output=off (fallback-парсер)
+
+**Участники:** пользователь, AI-ассистент (GigaChat).
+
+**Цель:** показать, что чат работает на провайдере без `json_schema` strict —
+GigaChat отвечает свободным текстом, fallback-парсер разбирает его и исполняет
+действие.
+
+**Шаги:**
+
+1. Оператор в `/admin` применяет пресет **GigaChat** → поля провайдера
+   заполняются, `structured_output` = **Выкл** (пресет отключает его, т.к.
+   GigaChat не поддерживает json_schema strict). Сохраняет.
+2. Пользователь открывает чат, в шапке видит лейбл **«GigaChat: GigaChat-Max»**
+   (провайдер подставляется из runtime, не захардкожен).
+3. При активном `sample_sales.csv` пишет: «построй круговую диаграмму выручки
+   по категориям».
+4. GigaChat отвечает свободным текстом (без json_schema).
+5. Backend fallback-парсер разбирает ответ и исполняет действие → в чате
+   появляется круговая диаграмма.
+
+**Ожидаемый результат:** график построен через fallback-парсер; лейбл
+провайдера корректен (GigaChat, не OpenAI).
+
+> Требует реального вызова GigaChat (токены). Секрет `GIGACHAT_AUTH_KEY` —
+> в `.env`.
+
+**Скриншоты:**
+
+![Чат с GigaChat + fallback-парсер](screenshots/ADA_chat_gigachat_fallback.png)
+
+*Шапка «GigaChat: GigaChat-Max» + круговая диаграмма, построенная через
+fallback-парсер (structured_output=off).*
+
+---
+
 # Операторский контур (админка `/admin`)
 
 > Вход: `https://data-assistant.alex-n8n.site/admin`, HTTP Basic

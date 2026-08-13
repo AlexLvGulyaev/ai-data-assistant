@@ -219,6 +219,7 @@ class ChatService:
             "saved_artifacts": self._collect_saved_artifacts(conversation),
             "ai_enabled": self.ai_service.enabled,
             "ai_model": self.ai_service.model_name,
+            "ai_provider_name": self.ai_service.provider_name,
         }
 
     def _apply_actions(

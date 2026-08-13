@@ -96,6 +96,12 @@ class AIService:
     def model_name(self) -> str:
         return self._runtime.get("openai_model")
 
+    @property
+    def provider_name(self) -> str:
+        # Отображаемое имя провайдера (из runtime/presета). Пусто для «Своего»
+        # без имени — тогда UI показывает нейтральный fallback («AI»).
+        return self._runtime.get("provider_name") or ""
+
     def _provider(self) -> str:
         return self._runtime.get("provider")
 
