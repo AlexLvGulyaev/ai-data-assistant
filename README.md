@@ -12,6 +12,8 @@ Data Assistant не строит дашборды 24/7, не хранит ваш
 
 [▶️ Попробовать live demo](https://data-assistant.alex-n8n.site) · [💼 Бизнес-ценность](docs/BUSINESS_VALUE.md) · [🎬 Как это работает](docs/E2E_SCENARIOS.md)
 
+> 📌 **Атрибуция:** идея и первоначальная структура проекта взяты из репозитория [`MrGAN12009/data_assistant`](https://github.com/MrGAN12009/data_assistant). Текущая версия переработана в мультипровайдерный data-ассистент с runtime-конфигом оператора (пресеты OpenAI/GigaChat/YandexGPT, редактор промпта, статистика использования), добавлены pie-графики и DOCX-отчёты, structured output + fallback, подготовлена публичная документация.
+
 ---
 
 ## ▶️ Live Demo
