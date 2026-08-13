@@ -1,5 +1,5 @@
-<section class="admin-registries">
-    <header class="admin-registries__head">
+<section class="admin-runtime admin-registries">
+    <header class="admin-runtime__head">
         <h2 class="admin-tooltip">
             Реестры агента
             <span class="admin-tooltip__text">{% raw %}Реестры агента — разрешённые действия и типы графиков, на которых держится функциональность ассистента: enum structured output модели, список available_actions, валидация ответа и рендер графиков строятся из этих реестров. Сейчас реестры кодовые (app/services/registries.py) — добавление нового типа графика требует записи в CHART_TYPES и реализации рендера в ChartService. Вынос реестров в редактируемые runtime-параметры админки — в roadmap (PROJECT_STATE, Вариант 4: декларативный движок графиков).{% endraw %}</span>
@@ -7,29 +7,35 @@
         <span class="admin-card__key">код · registries.py</span>
     </header>
 
-    <div class="admin-registries__group">
-        <h3>Действия <span class="admin-reg__count">{{ action_types|length }}</span></h3>
-        <ul class="admin-registries__list">
-        {% for key in action_types %}
-            <li>
-                <span class="admin-reg__label">{{ action_labels[key] }}</span>
-                <code class="admin-reg__key" title="{{ key }}">{{ key }}</code>
-                <span class="admin-reg__hint">— {{ action_hints[key] }}</span>
-            </li>
-        {% endfor %}
-        </ul>
-    </div>
+    <div class="admin-runtime__body">
+        <section class="admin-card admin-card--registry">
+            <header class="admin-card__head">
+                <h3>Действия</h3>
+                <span class="admin-card__key">{{ action_types|length }}</span>
+            </header>
+            <ul class="admin-registries__list">
+                {% for key in action_types %}
+                <li>
+                    <span class="admin-reg__label">{{ action_labels[key] }}</span>
+                    <code class="admin-reg__key" title="{{ key }}">{{ key }}</code>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
 
-    <div class="admin-registries__group">
-        <h3>Типы графиков <span class="admin-reg__count">{{ chart_types|length }}</span></h3>
-        <ul class="admin-registries__list">
-        {% for key in chart_types %}
-            <li>
-                <span class="admin-reg__label">{{ chart_labels[key] }}</span>
-                <code class="admin-reg__key" title="{{ key }}">{{ key }}</code>
-                <span class="admin-reg__hint">— {{ chart_hints[key] }}</span>
-            </li>
-        {% endfor %}
-        </ul>
+        <section class="admin-card admin-card--registry">
+            <header class="admin-card__head">
+                <h3>Типы графиков</h3>
+                <span class="admin-card__key">{{ chart_types|length }}</span>
+            </header>
+            <ul class="admin-registries__list">
+                {% for key in chart_types %}
+                <li>
+                    <span class="admin-reg__label">{{ chart_labels[key] }}</span>
+                    <code class="admin-reg__key" title="{{ key }}">{{ key }}</code>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
     </div>
 </section>

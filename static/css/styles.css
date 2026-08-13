@@ -1086,14 +1086,14 @@ button,
 }
 
 .admin-card--prompt .admin-input--textarea {
-    /* Чистый flex-рост: в широком режиме (>=1181px) высотная цепочка
-       bounded (body/page-frame/admin-shell/form/layout/main/card — все
-       flex:1 + min-height:0), textarea получает ровно оставшееся место —
-       без переполнения и без гипотез про viewport. Пол calc(100vh-…)
-       здесь НЕ нужен: он оказывался больше доступного flex-места и
-       выталкивал редактор за пределы панели (clipped overflow:hidden). */
+    /* Растёт flex-ростом до нижней границы карточки. min-height:0 — может
+       сжиматься; max-height:none — КРИТИЧНО: глобальное `textarea { max-height:
+       200px }` (для чат-композера) иначе капирует промпт-редактор на 200px
+       (~1/3 панели) и flex:1 не дорастает. height:100% тоже упиралось в тот
+       потолок. Без потолка flex:1 1 auto заполняет карточку целиком. */
     flex: 1 1 auto;
     min-height: 0;
+    max-height: none;
 }
 
 /* Макропанель «Runtime-конфиг» — объединяет провайдер и 6 операторских
@@ -1103,10 +1103,10 @@ button,
     background: var(--panel-strong);
     border: 1px solid var(--line);
     border-radius: 16px;
-    padding: 0.7rem;
+    padding: 0.5rem 0.6rem;
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    gap: 0.45rem;
 }
 
 .admin-runtime__head {
@@ -1126,46 +1126,31 @@ button,
 .admin-runtime__body {
     display: flex;
     flex-direction: column;
-    gap: 0.7rem;
-}
-
-/* Read-only секция «Реестры агента» — функциональное ядро (действия + типы
-   графиков). Кодовые реестры; показывают оператору, что умеет агент. */
-.admin-registries {
-    background: var(--panel-strong);
-    border: 1px solid var(--line);
-    border-radius: 16px;
-    padding: 0.6rem 0.7rem 0.65rem;
-    display: flex;
-    flex-direction: column;
     gap: 0.5rem;
 }
 
-.admin-registries__head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.5rem;
+/* Внутри макропанели «Реестры» две под-панели (Действия / Типы графиков)
+   стоят бок о бок — это экономит ~130px высоты правой колонки. */
+.admin-registries .admin-runtime__body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+    align-items: start;
 }
 
-.admin-registries__head h2 {
+/* Read-only макропанель «Реестры агента» — функциональное ядро (действия +
+   типы графиков). Переиспользует .admin-runtime (панель + шапка + тело);
+   внутри — две под-панели .admin-card--registry. Строка = только видимое
+   название + значение из хардкода (напр. «Предпросмотр файла preview»). */
+.admin-card--registry {
+    padding: 0.4rem 0.6rem 0.45rem;
+    gap: 0.25rem;
+}
+
+.admin-card--registry .admin-card__head h3 {
     margin: 0;
-    font-size: 0.95rem;
-}
-
-.admin-registries__group h3 {
-    margin: 0 0 0.3rem;
-    font-size: 0.78rem;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    font-weight: 600;
-}
-
-.admin-reg__count {
-    font-size: 0.7rem;
-    color: var(--muted);
-    font-weight: 400;
+    font-size: 0.8rem;
+    font-family: Georgia, "Times New Roman", serif;
 }
 
 .admin-registries__list {
@@ -1174,13 +1159,13 @@ button,
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.18rem;
+    gap: 0.12rem;
 }
 
 .admin-registries__list li {
     display: flex;
     align-items: baseline;
-    gap: 0.4rem;
+    gap: 0.45rem;
     font-size: 0.8rem;
     line-height: 1.3;
     min-width: 0;
@@ -1196,27 +1181,14 @@ button,
 }
 
 .admin-reg__key {
-    flex: 0 1 auto;
+    flex: 0 0 auto;
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 0.7rem;
     color: var(--muted);
     background: rgba(31, 40, 51, 0.05);
     padding: 0.05rem 0.35rem;
     border-radius: 5px;
-}
-
-.admin-reg__hint {
-    flex: 1 1 auto;
-    min-width: 0;
-    color: var(--muted);
-    font-size: 0.72rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 /* Тултип на лейбле параметра (чистый CSS, паттерн AI Curator).
@@ -1270,8 +1242,8 @@ button,
 
 /* Компактные карточки параметров (2 в ряд, без кнопок — общий «Сохранить»). */
 .admin-card--param {
-    padding: 0.5rem 0.7rem 0.55rem;
-    gap: 0.3rem;
+    padding: 0.4rem 0.6rem 0.45rem;
+    gap: 0.2rem;
     min-width: 0;
 }
 
@@ -1310,12 +1282,12 @@ button,
 /* Сетка операторских параметров — ровно 2 в ряд (3 ряда по 2). */
 .admin-layout__side .admin-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
+    gap: 0.4rem;
 }
 
 /* Секция «Провайдер». */
 .admin-card--provider {
-    gap: 0.5rem;
+    gap: 0.4rem;
 }
 
 /* Поля провайдера — раскладка 2+2 (верх: имя + модель, низ: endpoint +
@@ -1323,7 +1295,7 @@ button,
 .admin-provider-fields {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 0.5rem;
+    gap: 0.4rem;
 }
 
 /* Чипы пресетов провайдера. */
@@ -1365,20 +1337,17 @@ button,
     margin-top: 0.2rem;
 }
 
-@media (max-width: 1180px) {
-    /* Ниже wide-screen lock (>=1181px) нет bounded высотной цепочки —
-       body/page-frame в обычном потоке, flex:1 textarea коллапсирует в
-       min-height. Даём floor «почти во весь экран» calc-ом: страница
-       скроллится нормально, клиппинга нет (admin-shell тут не overflow:hidden). */
-    .admin-card--prompt .admin-input--textarea {
-        min-height: calc(100vh - 340px);
-    }
-}
-
 @media (max-width: 980px) {
     .admin-layout {
         grid-template-columns: 1fr;
         grid-template-rows: auto;
+    }
+    /* Узкий 1-колоночный режим: высотная цепочка не bounded (auto-ряд сетки),
+       flex:1 textarea коллапсирует. Даём floor «почти во весь экран» calc-ом;
+       страница скроллится нормально. В 981–1180px и >=1181px flex-цепочка
+       bounded (admin-shell: height calc + form flex:1) и floor не нужен. */
+    .admin-card--prompt .admin-input--textarea {
+        min-height: calc(100vh - 360px);
     }
 }
 
@@ -1396,6 +1365,9 @@ button,
     }
     .admin-provider-fields,
     .admin-layout__side .admin-grid {
+        grid-template-columns: 1fr;
+    }
+    .admin-registries .admin-runtime__body {
         grid-template-columns: 1fr;
     }
 }
