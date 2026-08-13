@@ -286,7 +286,48 @@ runtime-ключом `provider` (пресет); `AIService` маршрутизи
 
 ## 💬 7. Оркестрация диалога (ChatService)
 
-`app/services/chat_service.py`:
+`app/services/chat_service.py` — оркестрирует ход диалога: загрузка файла,
+обращение к модели, исполнение плана действий, сохранение разговора.
+
+### 🔄 Схема прохождения запроса
+
+```mermaid
+sequenceDiagram
+    participant U as Пользователь (браузер, HTMX)
+    participant R as routes/chat.py
+    participant C as ChatService
+    participant F as FileService
+    participant A as AIService
+    participant P as PromptLoader
+    participant L as LLM-провайдер
+    participant E as Actions (Analysis/Chart/Report)
+    U->>R: POST /chat/{id}/message (message_text + data_file)
+    R->>C: process_turn(...)
+    C->>C: get_conversation(id)
+    opt есть data_file
+        C->>F: save_upload → StoredFile
+        C->>C: active_file_id = file_id
+    end
+    opt есть активный файл
+        C->>F: build_preview_context + _build_ai_file_context
+    end
+    C->>A: plan_response(history, user_msg, file_ctx, actions)
+    A->>P: load_system_prompt({{specialization}}, {{provider_attribution}})
+    A->>A: _build_user_content (история + сообщение + файл + available_actions)
+    A->>L: chat.completions.create (structured_output) / GigaChat-адаптер
+    L-->>A: ответ (JSON по схеме или free-text)
+    A->>A: _parse_plan → AIPlan(assistant_message, actions[]) валидация по реестрам
+    A-->>C: AIPlan
+    loop для каждого action
+        C->>E: analyze / generate_chart / generate_report / save_summary
+        E-->>C: артефакт (PNG/DOCX/MD) в storage/outputs
+    end
+    C->>C: _persist(conversation) → storage/chats
+    C-->>R: assistant_message + chips артефактов
+    R-->>U: HTML-паршл (HTMX swap, без перезагрузки)
+```
+
+Шаги оркестрации:
 
 1. Получить/создать разговор.
 2. Если есть загрузка — сохранить файл, сделать активным.
@@ -294,7 +335,7 @@ runtime-ключом `provider` (пресет); `AIService` маршрутизи
 4. `AIService.plan_response(…)` → `AIPlan(assistant_message, actions)`.
 5. `_apply_actions` исполняет действия (анализ, график, отчёт, сводка).
 6. Сохранить разговор в JSON.
-7. При ошибке модели — fallback к локальной обработке (`_handle_local_prompt`).
+7. При ошибке модели — fallback к локальной обработке (`_handle_local_prompt`, см. §8).
 
 Файл должен быть загружен **в чат** (`/chat/{id}/message` с `data_file`), чтобы
 стать активным. Standalone `/upload` создаёт preview, но не привязывает файл
@@ -302,7 +343,45 @@ runtime-ключом `provider` (пресет); `AIService` маршрутизи
 
 ---
 
-## 📊 8. Графики (ChartService)
+## 🛡️ 8. Обработка ошибок
+
+Сервисы определяют типизированные иерархии исключений, чтобы слой оркестрации
+(`ChatService`) выбирал осмысленную реакцию на каждый тип сбоя — сообщение
+пользователю, fallback или проброс. Источник истины — `app/services/file_service.py`,
+`app/services/ai_service.py`, `app/services/chat_service.py`.
+
+### 📁 Иерархия FileService
+
+| Исключение | Базовый | Когда срабатывает | Реакция ChatService |
+|------------|---------|--------------------|--------------------|
+| `FileServiceError` | `Exception` | базовый класс файловых ошибок | перехват всех файловых ошибок → сообщение пользователю |
+| `UnsupportedFileError` | `FileServiceError` | нераспознанное расширение | «Не удалось обработать загрузку: …» |
+| `FileTooLargeError` | `FileServiceError` | превышен лимит (runtime `_effective_max_file_size`) | то же; лимит из runtime, не хардкод |
+| `EmptyFileError` | `FileServiceError` | пустой файл / таблица без строк | то же |
+| `FileReadError` | `FileServiceError` | не удалось прочитать/распарсить | то же |
+
+### 🤖 Иерархия AIService
+
+| Исключение | Базовый | Когда срабатывает | Реакция ChatService |
+|------------|---------|--------------------|--------------------|
+| `AIServiceError` | `RuntimeError` | базовый класс ошибок модели | — |
+| `AIServiceConfigurationError` | `AIServiceError` | нет пакета `openai` / нет ключа (`enabled == False`) | «OpenAI сейчас не настроен: … Добавьте ключ в `.env`» |
+| `AIServiceRequestError` | `AIServiceError` | сбой сетевого запроса к модели | fallback к `_handle_local_prompt` |
+
+### ❓ Почему типизация, а не единый Exception
+
+Разные ошибки требуют разной реакции: `FileTooLargeError` → подсказка «уменьшите файл»; `UnsupportedFileError` → «поддерживаются CSV/Excel/JSON/изображения»; `AIServiceConfigurationError` → «добавьте ключ в `.env`»; `AIServiceRequestError` → fallback на локальную обработку без обрыва диалога. Единый `Exception` скрыл бы причину: нельзя показать осмысленное сообщение или выбрать стратегию восстановления. Типизированные ошибки также дают точные логи для отладки.
+
+### 🩹 Стратегия fallback
+
+- **Файл:** любая `FileServiceError` при загрузке → сообщение пользователю, диалог продолжается (без активного файла).
+- **Модель config:** `AIServiceConfigurationError` → сообщение с инструкцией по настройке, диалог продолжается без модели.
+- **Модель runtime:** `AIServiceRequestError` → `_handle_local_prompt` — локальные сценарии анализа/графика без LLM; ответ помечается «OpenAI временно недоступен, поэтому я выполнил резервный локальный сценарий». Диалог не обрывается.
+- **Парсинг плана:** невалидный JSON модели — устойчивый fallback-парсер с валидацией против реестров (см. §5), не исключение.
+
+---
+
+## 📊 9. Графики (ChartService)
 
 `app/services/chart_service.py` — matplotlib, типы из `CHART_TYPES`:
 
@@ -315,7 +394,7 @@ runtime-ключом `provider` (пресет); `AIService` маршрутизи
 
 ---
 
-## 🎛️ 9. Админка оператора (`/admin`)
+## 🎛️ 10. Админка оператора (`/admin`)
 
 `app/routes/admin.py` + `templates/admin.html`:
 
@@ -340,7 +419,7 @@ runtime-ключом `provider` (пресет); `AIService` маршрутизи
 
 ---
 
-## 🚀 10. Развёртывание
+## 🚀 11. Развёртывание
 
 Два режима (см. [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md)):
 
@@ -354,7 +433,7 @@ runtime-ключом `provider` (пресет); `AIService` маршрутизи
 
 ---
 
-## 🔐 11. Безопасность
+## 🔐 12. Безопасность
 
 См. [`SECURITY_NOTES.md`](SECURITY_NOTES.md): секреты только в `.env`, `.env`
 исключён из образа (проверено), `/admin` за HTTP Basic, публичная документация
@@ -362,7 +441,7 @@ runtime-ключом `provider` (пресет); `AIService` маршрутизи
 
 ---
 
-## 📚 12. Связанные документы
+## 📚 13. Связанные документы
 
 - [🏠 `../README.md`](../README.md) — главная страница проекта.
 - [📝 `PROMPT_ARCHITECTURE.md`](PROMPT_ARCHITECTURE.md) — структура промпта, плейсхолдеры, валидация ответа.
