@@ -13,11 +13,11 @@
 
 ## 📋 Краткая сводка
 
-| Провайдер | base_url | Дефолтная модель | Auth для OpenAI SDK | structured_output | Drop-in? |
-|-----------|----------|------------------|--------------------|--------------------|----------|
-| **OpenAI** | `https://api.openai.com/v1` | `gpt-5-mini` | raw `api_key` (Bearer) — напрямую | да (json_schema strict, верифицировано) | **да** |
-| **GigaChat** (Сбер) | `https://gigachat.devices.sberbank.ru/api/v1` | `GigaChat-Max` | **нет** — OAuth-обмен authorization key → access token (адаптер `gigachat_adapter.py` запрашивает per-request, refresh скрыт) | нет (не задокументировано) | **нет** (но есть рабочий адаптер в проекте) |
-| **YandexGPT** (Yandex Foundation Models) | `https://llm.api.cloud.yandex.net/v1` | `gpt://<folder_id>/yandexgpt/latest` | API key как Bearer **+** header `x-folder-id` (и опц. `x-data-logging-enabled: false`) | нет (не подтверждено) | **частично** (в проекте не верифицирован) |
+| Провайдер | base_url | Модель | Auth | structured_output | Drop-in |
+|-----------|----------|--------|------|--------------------|---------|
+| **OpenAI** | `https://api.openai.com/v1` | `gpt-5-mini` | `api_key` Bearer | да | да |
+| **GigaChat** (Сбер) | `https://gigachat.devices.sberbank.ru/api/v1` | `GigaChat-Max` | OAuth-обмен (адаптер) | нет | нет |
+| **YandexGPT** | `https://llm.api.cloud.yandex.net/v1` | `gpt://<folder_id>/yandexgpt/latest` | Bearer + `x-folder-id` | нет | частично |
 
 **Главный вывод:** чистым drop-in (только `base_url` + `model` + `api_key`)
 является только OpenAI. GigaChat требует код-адаптера (OAuth-обмен токена + SSL),
