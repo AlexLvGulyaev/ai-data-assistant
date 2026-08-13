@@ -1024,39 +1024,12 @@ button,
     color: #b43c3c;
 }
 
-/* Кнопка теста провайдера в футере админки */
-.admin-foot__actions {
-    margin-bottom: 0.8rem;
-}
-
-.admin-foot {
-    margin-top: 0.8rem;
-    padding-top: 0.7rem;
-    border-top: 1px solid var(--line);
-    color: var(--muted);
-    font-size: 0.78rem;
-    line-height: 1.4;
-}
-
-.admin-foot code {
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    background: rgba(31, 40, 51, 0.05);
-    padding: 0.1rem 0.4rem;
-    border-radius: 5px;
-    font-size: 0.78rem;
-    word-break: break-all;
-}
-
-.admin-foot__note {
-    margin-top: 0.3rem;
-}
-
 /* ============================================================
    Admin: двухколоночная раскладка + тултипы + пресеты провайдера
    ============================================================ */
 
 /* Две колонки: слева — системный промпт (ядро, во всю высоту),
-   справа — управления (провайдер + операторские параметры + футер).
+   справа — управления (макропанель Runtime-конфиг: провайдер + параметры).
    Layout растягивается на всю высоту оболочки — промпт-карточка
    заполняет колонку, textarea тянется до нижней границы экрана. */
 .admin-layout {
@@ -1100,11 +1073,47 @@ button,
 }
 
 .admin-card--prompt .admin-input--textarea {
+    /* Чистый flex-рост: в широком режиме (>=1181px) высотная цепочка
+       bounded (body/page-frame/admin-shell/form/layout/main/card — все
+       flex:1 + min-height:0), textarea получает ровно оставшееся место —
+       без переполнения и без гипотез про viewport. Пол calc(100vh-…)
+       здесь НЕ нужен: он оказывался больше доступного flex-места и
+       выталкивал редактор за пределы панели (clipped overflow:hidden). */
     flex: 1 1 auto;
-    /* Явная высота через viewport — не зависит от того, добрался ли flex-рост
-       до textarea. «Почти во всю высоту панели»: viewport минус шапка,
-       статистика, голова карточки и подсказка. */
-    min-height: calc(100vh - 300px);
+    min-height: 0;
+}
+
+/* Макропанель «Runtime-конфиг» — объединяет провайдер и 6 операторских
+   параметров в одну группу с общим заголовком и источником (config.json),
+   по образцу карточки системного промпта. */
+.admin-runtime {
+    background: var(--panel-strong);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 0.7rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.admin-runtime__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.admin-runtime__head h2 {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.admin-runtime__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
 }
 
 /* Тултип на лейбле параметра (чистый CSS, паттерн AI Curator).
@@ -1242,15 +1251,20 @@ button,
     margin-top: 0.2rem;
 }
 
+@media (max-width: 1180px) {
+    /* Ниже wide-screen lock (>=1181px) нет bounded высотной цепочки —
+       body/page-frame в обычном потоке, flex:1 textarea коллапсирует в
+       min-height. Даём floor «почти во весь экран» calc-ом: страница
+       скроллится нормально, клиппинга нет (admin-shell тут не overflow:hidden). */
+    .admin-card--prompt .admin-input--textarea {
+        min-height: calc(100vh - 340px);
+    }
+}
+
 @media (max-width: 980px) {
     .admin-layout {
         grid-template-columns: 1fr;
         grid-template-rows: auto;
-    }
-    /* Узкий экран: одна колонка, промпт сверху. Textarea всё равно
-       «почти во всю высоту» — параметры ниже, скроллом страницы. */
-    .admin-card--prompt .admin-input--textarea {
-        min-height: calc(100vh - 340px);
     }
 }
 

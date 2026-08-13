@@ -15,38 +15,36 @@
         <main class="admin-layout__main">
             <section class="admin-card admin-card--prompt" id="card-prompt">
                 <header class="admin-card__head">
-                    <h2>Системный промпт</h2>
+                    <h2 class="admin-tooltip">
+                        Системный промпт
+                        <span class="admin-tooltip__text">{% raw %}Системный промпт — инструкция, задающая роль и поведение ассистента. Редактируется здесь, сохраняется общей кнопкой «Сохранить настройки» вверху панели. Единый источник истины — файл prompts/v1/system.md. Правка применяется на следующем запросе (mtime-кеш). Переменные: {{specialization}} — специализация (операторский параметр), {{provider_attribution}} — « от <провайдер>» либо пусто.{% endraw %}</span>
+                    </h2>
                     <span class="admin-card__key">{{ prompt_path }}</span>
                 </header>
-                <p class="admin-card__hint">
-                    Единый источник истины — файл <code>prompts/v1/system.md</code>. Правка
-                    применяется на следующем запросе (mtime-кеш). Переменные:
-                    <code>{{ "{{specialization}}" }}</code> — специализация (операторский параметр),
-                    <code>{{ "{{provider_attribution}}" }}</code> — « от &lt;провайдер&gt;» либо пусто.
-                    Сохраняется общей кнопкой «Сохранить настройки» вверху панели.
-                </p>
                 <textarea name="content" class="admin-input admin-input--textarea"
                           spellcheck="false">{{ prompt_text }}</textarea>
             </section>
         </main>
 
         <aside class="admin-layout__side">
-            {% include "partials/admin_provider.html" %}
+            <section class="admin-runtime">
+                <header class="admin-runtime__head">
+                    <h2 class="admin-tooltip">
+                        Runtime-конфиг
+                        <span class="admin-tooltip__text">{% raw %}Runtime-конфиг — операторские параметры (провайдер, модель, специализация, температура и др.), применяются на следующем запросе без пересборки и рестарта. Источник: /app/storage/config.json (mtime-кеш). Секреты (OPENAI_API_KEY, GIGACHAT_AUTH_KEY, ADMIN_TOKEN) и bootstrap (хост/порт, пути) живут в .env и требуют рестарта. Операторские параметры выше — нет.{% endraw %}</span>
+                    </h2>
+                    <span class="admin-card__key">{{ runtime_config_path }}</span>
+                </header>
+                <div class="admin-runtime__body">
+                    {% include "partials/admin_provider.html" %}
 
-            <div class="admin-grid">
-                {% for param in general_params %}
-                {% include "partials/admin_param_card.html" with context %}
-                {% endfor %}
-            </div>
-
-            <footer class="admin-foot">
-                <p>Источник runtime-конфига: <code>{{ runtime_config_path }}</code></p>
-                <p class="admin-foot__note">
-                    Секреты (OPENAI_API_KEY, GIGACHAT_AUTH_KEY, ADMIN_TOKEN) и bootstrap
-                    (хост/порт, пути) живут в <code>.env</code> и требуют рестарта.
-                    Операторские параметры выше — нет.
-                </p>
-            </footer>
+                    <div class="admin-grid">
+                        {% for param in general_params %}
+                        {% include "partials/admin_param_card.html" with context %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
         </aside>
     </div>
 </form>
