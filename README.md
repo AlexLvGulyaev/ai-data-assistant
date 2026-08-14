@@ -285,6 +285,35 @@ ai-data-assistant/
 
 ---
 
+## 🧭 Минимальный путь по коду
+
+Чтобы понять систему, достаточно прочитать эти файлы по порядку — это
+**учебное ядро**, сохранённое из исходного проекта [`data_assistant`](https://github.com/MrGAN12009/data_assistant):
+
+1. [`app/main.py`](app/main.py) — точка входа: `FastAPI`, `lifespan` (логирование,
+   `ensure_storage`, seed `config.json`), подключение роутеров, `/static` и `/storage`.
+2. [`app/routes/chat.py`](app/routes/chat.py) — `POST /chat/{id}/message` →
+   `chat_service.process_turn` (HTMX-точка диалога: текст + файл → HTML-паршл).
+3. [`app/services/chat_service.py`](app/services/chat_service.py) — оркестрация
+   диалога: `process_turn` → `plan_response` → `_apply_actions`; fallback к
+   локальным сценариям при сбое модели.
+4. [`app/services/registries.py`](app/services/registries.py) — единый источник
+   истины: `ACTION_TYPES` / `CHART_TYPES` / `PROVIDER_PRESETS`. Ключ к контракту
+   «модель планирует, приложение исполняет».
+5. [`app/services/ai_service.py`](app/services/ai_service.py) — слой модели:
+   Chat Completions, structured output (`json_schema`), маршрутизация по пресету
+   провайдера (OpenAI SDK / GigaChat-адаптер).
+6. [`app/services/file_service.py`](app/services/file_service.py) — загрузка,
+   чтение DataFrame/изображений, артефакты + типизированная иерархия ошибок
+   (`FileServiceError` → `UnsupportedFileError` / `FileTooLargeError` / …).
+
+> 📌 Продакшн-расширения (runtime-конфиг, промпт-файл, GigaChat-адаптер,
+> статистика, операторская панель `/admin`) вынесены в отдельные модули и
+> изучаются опционально. Полная карта — в разделе «Структура проекта» выше,
+> архитектура слоёв и реестров — в [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+---
+
 ## 📄 Лицензия
 
 Учебный проект. Используйте и адаптируйте свободно.
