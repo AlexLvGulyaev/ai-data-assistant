@@ -68,6 +68,7 @@ cp .env.example .env
 | `GIGACHAT_AUTH_KEY` | только для GigaChat | Authorization key Сбер (секрет) |
 | `GIGACHAT_CA_BUNDLE` | нет | Путь к CA-bundle для TLS GigaChat (без него — `ssl.CERT_NONE`) |
 | `ADMIN_TOKEN` | для `/admin` | Токен доступа к админке (HTTP Basic, пользователь `admin`) |
+| `APP_PASSWORD` | нет | Общий пароль чата на весь UI (чат, загрузки, `/storage`, артефакты). Пусто/не задан — открытый демо-режим; задан — все запросы, кроме `/health`, `/static` и `/login`, редиректят на `/login`. `/admin` остаётся за HTTP Basic (второй фактор) |
 | `APP_PORT` | нет (умолч. `8000`) | Порт хоста (только dev-режим с публикацией порта) |
 | `APP_HOST` | нет (умолч. `0.0.0.0`) | Хост |
 | `LOG_LEVEL` | нет (умолч. `INFO`) | Уровень логирования |
@@ -290,13 +291,18 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 | Отчёт | кнопка/запрос отчёта | DOCX в артефактах, скачивается |
 | Админка | `http://localhost:8000/admin` (Basic: `admin`/`ADMIN_TOKEN`) | панель операторских параметров |
 | Runtime-смена | изменить параметр в `/admin` → новый запрос | новое значение применено без рестарта |
+| Аутентификация чата | задать `APP_PASSWORD` → рестарт → `curl -o /dev/null -w "%{http_code}" http://localhost:8000/` | `303` с `Location: /login?next=/` |
+| Вход по паролю | `curl -c /tmp/ada-cookie -o /dev/null -w "%{http_code}" -d "password=<APP_PASSWORD>&next=/" http://localhost:8000/login` | `303`, cookie `ada_session` установлена; далее `/` открывается без логина |
+| Неверный пароль | `curl -o /dev/null -w "%{http_code}" -d "password=wrong" http://localhost:8000/login` | `401` + страница входа с «Неверный пароль» |
+| Health без входа | `curl http://localhost:8000/health` | `200` всегда (exempt для Docker healthcheck) |
+| Второй фактор админки | `curl -o /dev/null -w "%{http_code}" -b cookie.txt http://localhost:8000/admin` | `401` — cookie чата не открывает `/admin`, нужен HTTP Basic |
 
 ### Публичный деплой (через обратный прокси)
 
 | Проверка | Команда | Ожидаемый результат |
 |----------|---------|---------------------|
 | Публичный health (HTTPS) | `curl https://data-assistant.alex-n8n.site/health` | `{"status":"ok","app":"Data Assistant"}`, валидный сертификат Let's Encrypt |
-| Главная (HTTPS) | `curl -L -o /dev/null -w "%{http_code}" https://data-assistant.alex-n8n.site/` | `200` (после редиректа на `/chat/{id}`) |
+| Главная (HTTPS) | `curl -o /dev/null -w "%{http_code}" https://data-assistant.alex-n8n.site/` | `303` → `Location: /login?next=/` (при заданном `APP_PASSWORD`; без пароля — `200` после редиректа на `/chat/{id}`) |
 | Сертификат | `openssl s_client -servername data-assistant.alex-n8n.site -connect data-assistant.alex-n8n.site:443 </dev/null \| openssl x509 -noout -issuer` | `issuer=...Let's Encrypt...` |
 
 ---
@@ -312,6 +318,10 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 Операторские параметры (модель, endpoint, специализация, температура, лимиты файла и др.) меняются через `/admin` (см. [`OPERATOR_GUIDE.md`](OPERATOR_GUIDE.md)) или прямым редактированием `storage/config.json` — применяются на следующем запросе. **Пересборка и рестарт не требуются.** `storage/config.json` — единственный источник истины этих параметров; начальные значения сеются из хардкоженных умолчаний при первом старте.
 
+### Реестры агента (runtime, `/admin`)
+
+Разрешённые действия и типы графиков редактируются в `/admin` → «Реестры агента» (лейблы/подсказки/чипы действий, рецепты graph-типов, добавление нового типа графика поверх трёх табличных kind'ов без кода, сброс к кодовым дефолтам). Единый источник истины — `storage/registries.json`; применение — на следующем запросе. См. [`OPERATOR_GUIDE.md`](OPERATOR_GUIDE.md) и `app/services/registry_runtime.py`.
+
 ### Bootstrap-параметры (требуют рестарт)
 
 `OPENAI_API_KEY`, `GIGACHAT_AUTH_KEY`, `GIGACHAT_CA_BUNDLE`, `ADMIN_TOKEN`, `APP_HOST`, `APP_PORT`, `LOG_LEVEL`, пути к каталогам, `PROMPTS_DIR`, `RUNTIME_CONFIG_PATH` — меняются в `.env` с последующим `docker compose up -d` (production) или рестартом. Операторских параметров в `.env` нет.
@@ -326,10 +336,17 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 | `storage/outputs/` | Графики (PNG), отчёты (DOCX) | нет | volume |
 | `storage/chats/` | Разговоры (JSON) | нет | volume |
 | `storage/config.json` | Runtime-конфиг оператора (единственный SOT параметров) | нет | volume |
+| `storage/registries.json` | Runtime-реестры агента (типы графиков с рецептами, лейблы действий) | нет (сеется при первом старте) | volume |
 | `prompts/` | Версионированные промпты (единый SOT системного промпта) | да (в образе) + mount | `./prompts:/app/prompts` |
 | `.env` | Секреты и bootstrap | **нет** (`.dockerignore`) | `env_file` (runtime injection) |
 
 > `.env` не попадает в образ (см. `.dockerignore`). Секреты инъектируются через `env_file` при запуске контейнера.
+>
+> **`storage/` — bind-mount (`./storage:/app/storage`)**: чаты, загрузки, артефакты,
+> runtime-конфиг и реестры переживают рестарт и пересборку контейнера — данные
+> лежат на хосте, а не в слое образа. Подтверждено Deployment Validation
+> (пересоздание контейнера, счётчики файлов до/после). Бэкап — целиком каталог
+> `storage/` (и, при желании, `prompts/`): `tar czf ada-storage-$(date +%F).tgz storage/`.
 >
 > `prompts/` монтируется в production поверх образа: правка системного промпта
 > через `/admin` (POST `/admin/prompt` пишет в `prompts/v1/system.md`) переживает
@@ -346,6 +363,8 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 | Порт занят | другой процесс на 8000 | `APP_PORT=80xx docker compose …` |
 | `/admin` → 403 | `ADMIN_TOKEN` не задан | задайте `ADMIN_TOKEN` в `.env`, рестарт |
 | `/admin` → 401 | неверный пароль | пароль = `ADMIN_TOKEN`, пользователь `admin` |
+| Чат → «Требуется вход»/редирект на `/login` | задан `APP_PASSWORD`, cookie сессии нет/протухла (30 дней) | войдите на `/login`; сброс пароля в `.env` инвалидирует все сессии (требуется рестарт) |
+| `/login` не открывается | `APP_PASSWORD` пуст — auth выключен | это штатное поведение открытого демо; задайте `APP_PASSWORD`, если нужен вход |
 | Модель не отвечает | неверный ключ/endpoint/провайдер | проверьте `OPENAI_API_KEY` (или `GIGACHAT_AUTH_KEY` для GigaChat) и пресет провайдера в `/admin` → «Тест провайдера» |
 | Модель возвращает мусор | провайдер без structured output | `/admin` → `STRUCTURED_OUTPUT=false` |
 | Файл не прикреплён к чату | загрузка через standalone `/upload` | загружайте файл **в чат** (`/chat/{id}/message` с `data_file`) |

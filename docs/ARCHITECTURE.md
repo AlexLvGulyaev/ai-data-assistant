@@ -53,11 +53,12 @@ flowchart TB
             Chart["ChartService<br/>histogram/bar/line/pie"]
             Report["ReportService<br/>DOCX"]
             Runtime["RuntimeConfig<br/>config.json + mtime-кеш"]
+            RegRuntime["RegistryRuntime<br/>registries.json + mtime-кеш"]
             Prompt["PromptLoader<br/>prompts/v1/system.md"]
-            Reg[("Registries<br/>ACTION_TYPES / CHART_TYPES")]
+            Reg[("Registries<br/>chart-type рецепты / action-лейблы")]
         end
 
-        Storage[("storage/<br/>uploads, outputs, chats, config.json")]
+        Storage[("storage/<br/>uploads, outputs, chats, config.json, registries.json")]
     end
 
     LLM[LLM Provider]
@@ -86,6 +87,14 @@ flowchart TB
 
 - **Registries** — единый источник истины действий и графиков; модель не
   может вернуть действие или график, отсутствующий в реестре.
+- **RegistryRuntime** (`app/services/registry_runtime.py`, паттерн RuntimeConfig) —
+  runtime-реестр в `storage/registries.json`: типы графиков с декларативными
+  рецептами (kind/categorical/timeline) и лейблы действий; enum `chart_type` в
+  json_schema, валидация плана, чипы чата и рендер строятся из реестра; правки
+  через `/admin` применяются на следующем запросе без рестарта.
+- **PasswordAuthMiddleware** (`app/core/auth.py`) — общий пароль `APP_PASSWORD`
+  на весь UI чата (cookie-сессия, см. SECURITY_NOTES §4.5); `/admin` остаётся
+  за HTTP Basic.
 - **RuntimeConfig** — операторские параметры в `storage/config.json`
   (mtime-кеш + write-lock); правки через `/admin` применяются на следующем
   запросе без рестарта.
@@ -100,7 +109,7 @@ flowchart TB
 |------|------------|----------------|
 | **Routes** | HTTP-эндпоинты, HTMX-рендер | `app/routes/{pages,chat,upload,actions,admin}.py` |
 | **Services** | Бизнес-логика | `app/services/*.py` |
-| **Config** | Настройки (bootstrap + runtime) | `app/core/config.py`, `app/services/runtime_config.py` |
+| **Config** | Настройки (bootstrap + runtime) | `app/core/config.py`, `app/services/runtime_config.py`, `app/core/auth.py` |
 | **Prompts** | Версионированные промпты | `prompts/v1/system.md`, `app/services/prompt_loader.py` |
 | **Registries** | Единый источник истины действий/графиков | `app/services/registries.py` |
 | **Templates** | Jinja2 + HTMX | `templates/` |

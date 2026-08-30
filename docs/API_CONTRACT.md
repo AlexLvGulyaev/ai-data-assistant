@@ -46,6 +46,13 @@
 - `:id` в путях — это `conversation_id` или `file_id` (строка, генерируется
   сервисом; для человека — opaque идентификатор).
 - Формы — `multipart/form-data` (загрузка файлов) или `application/x-www-form-urlencoded`.
+- **Аутентификация (`PasswordAuthMiddleware`, `app/core/auth.py`)** — при заданном
+  `APP_PASSWORD` все пути, кроме экземптов (`/health`, `/static`, `/login`,
+  `/logout`, `/favicon.ico`), требуют cookie-сессию `ada_session` (вход через
+  POST `/login`): GET-навигация без сессии → `303` на `/login?next=…`; не-GET и
+  HTMX-запросы → `401` JSON. При пустом `APP_PASSWORD` middleware прозрачно
+  пропускает трафик (штатное поведение до введения пароля). `/admin` дополнительно
+  защищён HTTP Basic — cookie чата его не открывает.
 
 ---
 
@@ -56,10 +63,20 @@
 | Метод | Путь | Принимает | Ответ (браузер) | Статусы |
 |-------|------|-----------|-----------------|---------|
 | GET | `/` | — | `303` редирект на `/chat/{conversation_id}` (создаётся новый разговор) | 303 |
-| GET | `/health` | — | JSON `{"status":"ok","app":"Data Assistant"}` | 200 |
+| GET | `/health` | — | JSON `{"status":"ok","app":"Data Assistant"}`; доступен без cookie (`APP_PASSWORD`-экземпт) | 200 |
 | GET | `/chat/{conversation_id}` | — | Полная страница чата (HTML) или паршл `partials/chat_shell.html` (HTMX) | 200, 404 (чат не найден) |
 | GET | `/preview/{file_id}` | — | Страница превью файла или паршл `partials/preview_content.html` | 200 |
 | GET | `/results/{file_id}` | — | Страница результатов (анализ + графики) или паршл; если графиков нет — строятся дефолтные | 200 |
+
+### Аутентификация чата (`app/routes/auth.py`)
+
+Требует заданный `APP_PASSWORD`; при пустом — редирект в чат (auth выключен).
+
+| Метод | Путь | Принимает | Ответ | Статусы |
+|-------|------|-----------|-------|---------|
+| GET | `/login` | `next: str ?=` | Страница входа (`login.html`); уже залогиненный → `303` на `next` | 200; 303 |
+| POST | `/login` | `password: str`, `next: str ?=/` | Верная пара → `303` на `next` + cookie `ada_session`; неверная → форма с ошибкой | 303; 401 |
+| GET | `/logout` | — | `303` на `/login`, cookie удалена | 303 |
 
 ### Чат (`app/routes/chat.py`)
 
@@ -107,6 +124,8 @@
 | POST | `/admin/provider` | `preset: str` | Паршл секции «Провайдер» с активным чипом и обновлёнными полями | 200; 401/403 |
 | POST | `/admin/test` | — | Паршл `partials/admin_status.html` с результатом пинга провайдера (модель, латентность, ошибка) | 200; 401/403 |
 | POST | `/admin/prompt` | `prompt: str` | Паршл `partials/admin_status.html` — промпт сохранён в файл `prompts/v1/system.md` | 200; 401/403 |
+| POST | `/admin/registries` | поля формы `ct__<тип>__<поле>` / `act__<действие>__<поле>` / `ct__new__*` | Паршл секции «Реестры агента» (`partials/admin_registries.html`) со статусом сохранения/ошибкой («Не сохранено — …» при невалидном рецепте, файл не меняется) | 200; 401/403 |
+| POST | `/admin/registries/reset` | — | Паршл секции — реестр засеян кодовыми дефолтами | 200; 401/403 |
 
 HTMX-цель подмены статуса — `#admin-status`. После `update`/`reset` inline-JS
 обновляет отображение текущего значения параметра в карточке.

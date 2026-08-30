@@ -2,7 +2,7 @@
 
 **Проект:** ai-data-assistant
 **Дата создания:** 2026-08-12
-**Последнее обновление:** 2026-08-12
+**Последнее обновление:** 2026-08-30
 **Статус:** MVP готов — архитектурные улучшения A–G + вариант 3 (runtime-config + `/admin`) реализованы, протестированы в Docker end-to-end, Deployment Validation пройдена в чистом окружении.
 
 ---
@@ -86,10 +86,10 @@ AI Data Assistant — веб-приложение (FastAPI + Jinja2 + HTMX) дл
 
 ## 🧭 7. Next Steps
 
-- [ ] (опционально) Вариант 4 — декларативный движок графиков (chart spec как данные).
-- [ ] (роадмап) Реестры агента (`ACTION_TYPES`, `CHART_TYPES` + лейблы/подсказки) вынести из хардкода (`app/services/registries.py`) в редактируемые runtime-параметры админки. Сейчас реестры code-defined (добавление типа графика требует записи в `CHART_TYPES` + реализации рендера в `ChartService`); в админке они показаны read-only секцией «Реестры агента» как движение в нужном направлении. Полный вынос требует: (1) хранения реестра в `storage/config.json`, (2) generic-рендера графиков по декларативному spec (Вариант 4), (3) загрузки enum structured output и `available_actions` из runtime-реестра в `AIService`, (4) UI редактирования в `/admin`.
-- [ ] (опционально) Аутентификация пользователей чата (сейчас `/admin` защищён, чат — открыт).
-- [ ] (опционально) Persistent volume для `storage/` в production.
+- [x] **Вариант 4** — декларативный движок графиков (chart spec как данные). `ChartService` — generic-исполнители по `recipe.kind` (histogram/categorical/timeline); выбор осей по умолчанию выражен данными (`x_role`/`y_role`). Историческое поведение 4 базовых типов сохранено 1:1. (2026-08-30)
+- [x] **(роадмап) Реестры агента в runtime** — `RegistryRuntime` (`app/services/registry_runtime.py`, паттерн RuntimeConfig): SOT — `storage/registries.json`, seed при первом старте, mtime-кеш (правка без рестарта), атомарная запись с валидацией. Enum `chart_type` в json_schema structured output, валидация плана и `available_actions` в `AIService` — из runtime-реестра. UI редактирования в `/admin` (лейблы/подсказки/чипы действий, рецепты, добавление типа без кода, сброс). Ограничение: новый kind-исполнитель требует кода. (2026-08-30)
+- [x] **Аутентификация чата** — общий пароль `APP_PASSWORD` (`.env`): cookie-сессия `ada_session` (HMAC-SHA256, 30 дней), middleware на весь UI (чат, загрузки, `/storage`); `/admin` остаётся за HTTP Basic (второй фактор); пусто = открытый демо-режим. (2026-08-30)
+- [x] **Persistent volume** — долговая запись снята: production compose биндит `./storage` и `./prompts` на хост; подтверждено Deployment Validation (2026-08-30, пересоздание контейнера, счётчики файлов до/после).
 
 ---
 
@@ -102,3 +102,4 @@ AI Data Assistant — веб-приложение (FastAPI + Jinja2 + HTMX) дл
 | 2026-08-12 | Docker + тесты | Production-сборка, end-to-end тесты пройдены (upload → analyze → charts incl. pie → DOCX → download; `/admin` без рестарта) |
 | 2026-08-12 | Deployment Validation | Пройдена в чистом окружении (см. DEPLOYMENT_VALIDATION_REPORT.md) |
 | 2026-08-12 | MVP готов | Документация APL опубликована |
+| 2026-08-30 | Флагманская доработка | Вариант 4 (декларативный движок графиков) + runtime-реестры агента с UI в `/admin` + парольная аутентификация чата (APP_PASSWORD); persistent storage верифицирован на живом контейнере. Deployment Validation пройдена в чистом окружении (dind). Публичное демо — открытый режим (APP_PASSWORD пуст): пароль — опция для закрытых клиентских инстансов |

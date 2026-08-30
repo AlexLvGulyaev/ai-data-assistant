@@ -116,6 +116,11 @@ docker compose exec web python -c "from app.services.chart_service import ChartS
 
 # 6. Чистое окружение — Deployment Validation по DEPLOYMENT_GUIDE
 #    новый VPS / ВМ / чистый Docker Host, без знаний автора сверх документации
+
+# 7. Аутентификация чата (если APP_PASSWORD задан)
+#    curl -o /dev/null -w "%{http_code}" http://localhost:8000/        # 303 → /login?next=/
+#    curl -c /tmp/ada-cookie -o /dev/null -w "%{http_code}" \
+#         -d "password=<APP_PASSWORD>&next=/" http://localhost:8000/login   # 303 + cookie
 ```
 
 > Полная процедура воспроизведения с нуля — в `DEPLOYMENT_GUIDE.md`.
@@ -141,7 +146,10 @@ docker compose exec web python -c "from app.services.chart_service import ChartS
 - **`config.json` без секретов:** runtime-конфиг содержит только операторские
   параметры; `OPENAI_API_KEY`/`GIGACHAT_AUTH_KEY`/`ADMIN_TOKEN` туда не пишутся.
 - **`/admin` за HTTP Basic:** если `ADMIN_TOKEN` не задан — `/admin` отключён
-  (403).
+  (403). Cookie-сессия чата `APP_PASSWORD` админку не открывает (второй фактор).
+- **Общий пароль чата:** `APP_PASSWORD` (пусто = открытый демо-режим),
+  HMAC-cookie `ada_session`, см. SECURITY_NOTES §4.5; смена пароля инвалидирует
+  все сессии.
 - **Path traversal:** `/download/{artifact_name}` проверяет, что путь не выходит
   за пределы `output_dir`.
 - **LLM-токены:** тратятся только на L2 (чат) и L4 (провайдеры); L3 бесплатен.
