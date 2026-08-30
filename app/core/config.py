@@ -96,6 +96,11 @@ class Settings(BaseSettings):
     # HTTP Basic (пользователь `admin`, пароль = токен) — браузер сам держит
     # сессию, отдельная страница логина не нужна.
     admin_token: str | None = Field(default=None, alias="ADMIN_TOKEN")
+    # Общий пароль приложения на весь UI чата (чат, загрузка файлов, артефакты,
+    # /storage). Пусто/не задан — аутентификация выключена (открытый демо-режим).
+    # /admin НЕ exempt: пароль админки остаётся вторым фактором. Изоляции
+    # пользователей нет — один пароль на всех (модель общего демо-доступа).
+    app_password: str = Field(default="", alias="APP_PASSWORD")
 
     @model_validator(mode="after")
     def _resolve_paths(self) -> "Settings":

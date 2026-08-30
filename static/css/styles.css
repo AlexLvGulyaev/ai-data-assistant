@@ -1596,3 +1596,33 @@ button,
     cursor: pointer;
 }
 
+/* ---- Login (общий пароль APP_PASSWORD) ---- */
+.login-wrap {
+    max-width: 460px;
+    margin: 8vh auto 0;
+    padding: 28px 30px 30px;
+}
+
+.login-head h1 {
+    margin: 6px 0 8px;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.login-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.login-input {
+    width: 100%;
+}
+
+.login-btn {
+    align-self: flex-start;
+    margin-top: 6px;
+}

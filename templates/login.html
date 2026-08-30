@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block shell %}
+<section class="login-wrap panel">
+    <header class="login-head">
+        <p class="eyebrow">AI Workspace</p>
+        <h1>Вход</h1>
+        <p class="subtle">
+            Доступ к чату защищён общим паролем приложения. Пароль запрашивается один раз —
+            сессия сохраняется в браузере на 30 дней.
+        </p>
+        {% if error_message %}
+        <div class="alert alert-error">{{ error_message }}</div>
+        {% endif %}
+    </header>
+    <form class="login-form" method="post" action="/login">
+        <input type="hidden" name="next" value="{{ next_url or '/' }}">
+        <label class="login-label" for="login-password">Пароль</label>
+        <input class="admin-input login-input" type="password" id="login-password" name="password"
+               autocomplete="current-password" autofocus required>
+        <button class="primary-btn login-btn" type="submit">Войти</button>
+    </form>
+</section>
+{% endblock %}

@@ -16,6 +16,9 @@ services:
     container_name: data-assistant
     env_file:
       - .env
+    # APP_PASSWORD (общий пароль чата) читается из .env автоматически —
+    # отдельный блок environment не нужен. Пусто/не задан — открытый
+    # демо-режим; см. .env.example.
     # Хост-порт НЕ публикуется: наружу сервис выставляется через Traefik
     # (общий реверс-прокси лаборатории, file-provider /opt/n8n/dynamic.yml),
     # который достаёт контейнер по имени `data-assistant` на сети `n8n_default`.
