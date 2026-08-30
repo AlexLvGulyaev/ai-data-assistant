@@ -536,7 +536,7 @@ class AIService:
                                 "type": {"type": "string", "enum": list(ACTION_TYPES)},
                                 "chart_type": {
                                     "type": ["string", "null"],
-                                    "enum": [*chart_type_keys, None],
+                                    "enum": [*chart_types, None],
                                 },
                                 "x_column": {"type": ["string", "null"]},
                                 "y_column": {"type": ["string", "null"]},
