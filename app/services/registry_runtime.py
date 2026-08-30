@@ -178,6 +178,7 @@ class RegistryRuntime:
         существующие записи НЕ перезаписываются, добавляются только
         отсутствующие секции/типы."""
         with self._write_lock:
+            existed = self._path.exists()
             data = self._read_raw()
             changed = False
             if "actions" not in data:
@@ -186,7 +187,9 @@ class RegistryRuntime:
             if "chart_types" not in data:
                 data["chart_types"] = _default_registry()["chart_types"]
                 changed = True
-            if changed:
+            # NB: при отсутствии файла _read_raw() возвращает дефолты,
+            # поэтому absent-файл материализуем даже когда changed=False.
+            if changed or not existed:
                 self._write_raw(data)
                 logger.info("Agent registries initialized with defaults: %s", self._path)
 
