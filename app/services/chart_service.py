@@ -102,27 +102,27 @@ class ChartService:
             "any": list(dataframe.columns),
         }
 
-        figure, axis = self._new_figure()
         try:
             if kind == "histogram":
-                description = self._render_histogram(recipe, dataframe, roles, x_column)
+                rendered = self._render_histogram(recipe, dataframe, roles, x_column)
             elif kind == "timeline":
-                description = self._render_timeline(
+                rendered = self._render_timeline(
                     recipe, chart_type, dataframe, roles, x_column, y_column
                 )
             else:
-                description = self._render_categorical(
+                rendered = self._render_categorical(
                     recipe, chart_type, dataframe, roles, x_column, y_column
                 )
+            rendered_figure, description = rendered
         except Exception:
-            plt.close(figure)
+            plt.close("all")
             raise
 
         file_name = self._build_output_name(stored_file.file_id, chart_type, "png")
         output_path = self.settings.output_dir / file_name
-        figure.tight_layout()
-        figure.savefig(output_path, bbox_inches="tight")
-        plt.close(figure)
+        rendered_figure.tight_layout()
+        rendered_figure.savefig(output_path, bbox_inches="tight")
+        plt.close(rendered_figure)
         return {
             "title": f"{chart_type.title()} chart",
             "description": description,
@@ -154,7 +154,7 @@ class ChartService:
         dataframe: pd.DataFrame,
         roles: dict[str, list[str]],
         x_column: str | None,
-    ) -> str:
+    ) -> tuple[Any, str]:
         selected_x = self._resolve_column(
             roles, recipe.get("x_role", "numeric"), x_column, fallback_role="numeric"
         )
@@ -164,12 +164,12 @@ class ChartService:
         if series.empty:
             raise FileReadError("Недостаточно числовых значений для histogram.")
         bins = recipe.get("bins") or min(20, max(8, int(np.sqrt(len(series)))))
-        _, axis = self._new_figure()
+        figure, axis = self._new_figure()
         axis.hist(series, bins=int(bins), color=HIST_COLOR, edgecolor=HIST_EDGE)
         axis.set_title(f"Histogram: {selected_x}")
         axis.set_xlabel(selected_x)
         axis.set_ylabel("Frequency")
-        return f"Распределение значений колонки «{selected_x}»."
+        return figure, f"Распределение значений колонки «{selected_x}»."
 
     def _render_timeline(
         self,
@@ -179,7 +179,7 @@ class ChartService:
         roles: dict[str, list[str]],
         x_column: str | None,
         y_column: str | None,
-    ) -> str:
+    ) -> tuple[Any, str]:
         line_x = self._resolve_column(
             roles, recipe.get("x_role", "datetime"), x_column, fallback_role="dimension"
         )
@@ -198,7 +198,7 @@ class ChartService:
         plot_frame = plot_frame.dropna(subset=[selected_y]).head(int(recipe.get("limit", 50)))
         if plot_frame.empty:
             raise FileReadError(f"Недостаточно данных для {chart_type} графика.")
-        _, axis = self._new_figure()
+        figure, axis = self._new_figure()
         axis.plot(
             plot_frame[line_x].astype(str),
             plot_frame[selected_y],
@@ -210,7 +210,7 @@ class ChartService:
         axis.set_xlabel(line_x)
         axis.set_ylabel(selected_y)
         axis.tick_params(axis="x", rotation=35)
-        return f"Линейная динамика «{selected_y}» по оси «{line_x}»."
+        return figure, f"Линейная динамика «{selected_y}» по оси «{line_x}»."
 
     def _render_categorical(
         self,
@@ -220,7 +220,7 @@ class ChartService:
         roles: dict[str, list[str]],
         x_column: str | None,
         y_column: str | None,
-    ) -> str:
+    ) -> tuple[Any, str]:
         style = recipe.get("style", "bar")
         agg = recipe.get("agg", "mean")
         top_n = int(recipe.get("top_n", 10))
@@ -246,7 +246,7 @@ class ChartService:
         if grouped.empty:
             raise FileReadError(f"Недостаточно данных для {chart_type} графика.")
 
-        _, axis = self._new_figure()
+        figure, axis = self._new_figure()
         if style == "pie":
             axis.pie(
                 grouped.values,
@@ -258,17 +258,17 @@ class ChartService:
             axis.set_title(f"Pie chart: {selected_x}")
             axis.axis("equal")
             if frequency_mode:
-                return f"Доли по категориям «{selected_x}» (частоты)."
-            return f"Доли «{selected_y}» по категориям «{selected_x}» ({agg})."
+                return figure, f"Доли по категориям «{selected_x}» (частоты)."
+            return figure, f"Доли «{selected_y}» по категориям «{selected_x}» ({agg})."
 
         axis.bar(grouped.index.astype(str), grouped.values, color=BAR_COLOR)
         axis.set_ylabel("Count" if frequency_mode else f"{agg.capitalize()} {selected_y}")
         axis.set_title(f"Bar chart: {selected_x}")
         axis.tick_params(axis="x", rotation=30)
         if frequency_mode:
-            return f"Частоты по колонке «{selected_x}»."
+            return figure, f"Частоты по колонке «{selected_x}»."
         agg_label = {"mean": "Средние значения", "sum": "Суммы", "count": "Частоты"}[agg]
-        return f"{agg_label} «{selected_y}» по категориям «{selected_x}» ({agg})."
+        return figure, f"{agg_label} «{selected_y}» по категориям «{selected_x}» ({agg})."
 
     def _aggregate(
         self,
