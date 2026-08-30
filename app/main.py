@@ -13,6 +13,7 @@ from app.routes.chat import router as chat_router
 from app.routes.pages import router as pages_router
 from app.routes.upload import router as upload_router
 from app.services.file_service import FileService
+from app.services.registry_runtime import RegistryRuntime
 from app.services.runtime_config import RuntimeConfig
 
 
@@ -27,6 +28,9 @@ async def lifespan(_: FastAPI):
     # storage/config.json единым SOT операторских параметров (без дублирования
     # в .env). Идемпотентно: существующие ключи не трогаются.
     RuntimeConfig(settings).ensure_initialized()
+    # Аналогично — реестры агента (типы графиков с рецептами + лейблы действий):
+    # seed из registries.py → storage/registries.json, дальше — runtime.
+    RegistryRuntime(settings).ensure_initialized()
     yield
 
 

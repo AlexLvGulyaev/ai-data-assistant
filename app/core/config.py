@@ -71,6 +71,14 @@ class Settings(BaseSettings):
         default=Path("storage/config.json"), alias="RUNTIME_CONFIG_PATH"
     )
 
+    # --- Runtime-реестры (bootstrap): путь к JSON реестров агента ---
+    # Реестры (типы графиков с рецептами, лейблы/подсказки действий) —
+    # отдельная зона ответственности от config.json: см.
+    # app/services/registry_runtime.py.
+    registries_path: Path = Field(
+        default=Path("storage/registries.json"), alias="REGISTRIES_PATH"
+    )
+
     # --- Секреты (только .env, рестарт) ---
     # Поля названы openai_* для совместимости с env, но провайдер может быть
     # любым совместимым (GigaChat, YandexGPT, Gemini и т.п.) — endpoint/model
@@ -100,6 +108,7 @@ class Settings(BaseSettings):
             "static_dir",
             "prompts_dir",
             "runtime_config_path",
+            "registries_path",
         ):
             value = getattr(self, name)
             if not value.is_absolute():

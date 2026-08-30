@@ -13,10 +13,9 @@ from app.services.prompt_loader import PromptLoader
 from app.services.registries import (
     ACTION_TYPES,
     ACTION_TYPES_SET,
-    CHART_TYPES,
-    CHART_TYPES_SET,
     PROVIDER_PRESETS,
 )
+from app.services.registry_runtime import RegistryRuntime
 from app.services.runtime_config import RuntimeConfig
 from app.services.usage_service import UsageService
 
@@ -61,7 +60,8 @@ class AIService:
     Промпт грузится из версионированного файла через `PromptLoader` — единый
     SOT текста промпта, правка применяется в runtime без рестарта. Контракт
     ответа (structured output через json_schema) генерируется из реестров
-    `ACTION_TYPES`/`CHART_TYPES` — единый источник истины, AI не может вернуть
+    (действия — код, `ACTION_TYPES`; типы графиков — runtime-реестр
+    `storage/registries.json`) — единый источник истины, AI не может вернуть
     действие/график, который приложение не умеет исполнять. Для провайдеров без
     structured output оператор отключает `STRUCTURED_OUTPUT`, и ответ парсится
     устойчивым парсером.
@@ -78,6 +78,9 @@ class AIService:
         self._gigachat: GigaChatAdapter | None = None
         self._gigachat_signature: tuple[str, ...] | None = None
         self._runtime = RuntimeConfig(self.settings)
+        # Runtime-реестры (типы графиков enum'ом в контракт модели; лейблы
+        # действий) — mtime-кеш, правка через /admin видна на след. запросе.
+        self._registry = RegistryRuntime(self.settings)
         # PromptLoader читает сам файл промпта (единственный SOT); runtime-конфиг
         # держит только операторские параметры для интерполяции шаблона.
         self._prompt_loader = PromptLoader(self.settings)
@@ -498,13 +501,14 @@ class AIService:
         return text_block
 
     def _build_available_actions(self) -> list[dict[str, Any]]:
-        """Список разрешённых действий для подсказки модели. Выводится из реестров."""
+        """Список разрешённых действий для подсказки модели. Типы действий —
+        код; enum типов графиков — из runtime-реестра."""
         actions: list[dict[str, Any]] = [
             {"type": "preview"},
             {"type": "analyze"},
             {
                 "type": "generate_chart",
-                "chart_type": " | ".join(CHART_TYPES),
+                "chart_type": " | ".join(self._registry.chart_type_keys()),
                 "x_column": "string | null",
                 "y_column": "string | null",
             },
@@ -514,7 +518,9 @@ class AIService:
         return actions
 
     def _build_response_schema(self) -> dict[str, Any]:
-        """JSON Schema structured output. Enum'ы генерируются из реестров."""
+        """JSON Schema structured output. Enum'ы генерируются из реестров
+        (runtime: chart_type — из реестра типов графиков)."""
+        chart_types = self._registry.chart_type_keys()
         return {
             "name": "data_assistant_plan",
             "strict": True,
@@ -530,7 +536,7 @@ class AIService:
                                 "type": {"type": "string", "enum": list(ACTION_TYPES)},
                                 "chart_type": {
                                     "type": ["string", "null"],
-                                    "enum": [*CHART_TYPES, None],
+                                    "enum": [*chart_type_keys, None],
                                 },
                                 "x_column": {"type": ["string", "null"]},
                                 "y_column": {"type": ["string", "null"]},
@@ -573,13 +579,21 @@ class AIService:
                 continue
             normalized = {"type": action_type}
             if action_type == "generate_chart":
-                chart_type = str(item.get("chart_type", "bar")).strip().lower()
-                normalized["chart_type"] = chart_type if chart_type in CHART_TYPES_SET else "bar"
+                chart_type = str(item.get("chart_type", "")).strip().lower()
+                if chart_type not in self._registry.chart_types_set():
+                    chart_type = self._fallback_chart_type()
+                normalized["chart_type"] = chart_type
                 normalized["x_column"] = self._clean_optional_text(item.get("x_column"))
                 normalized["y_column"] = self._clean_optional_text(item.get("y_column"))
             actions.append(normalized)
 
         return AIPlan(assistant_message=assistant_message, actions=actions[:4])
+
+    def _fallback_chart_type(self) -> str:
+        """Тип графика-умолчание, если модель вернула неизвестный/пустой:
+        исторический «bar», когда он есть в реестре, иначе первый тип."""
+        keys = self._registry.chart_type_keys()
+        return "bar" if "bar" in keys else (keys[0] if keys else "")
 
     def _clean_optional_text(self, value: Any) -> str | None:
         if value is None:

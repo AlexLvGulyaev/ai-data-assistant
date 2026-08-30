@@ -13,15 +13,18 @@ from app.core.config import get_settings
 from app.services.ai_service import AIService
 from app.services.prompt_loader import PromptLoader
 from app.services.registries import (
-    ACTION_TYPE_HINTS_RU,
-    ACTION_TYPE_LABELS_RU,
     ACTION_TYPES,
-    CHART_TYPE_HINTS,
-    CHART_TYPE_LABELS_RU,
-    CHART_TYPES,
+    AGGREGATIONS,
+    AXIS_ROLES,
+    CATEGORICAL_STYLES,
+    RECIPE_KINDS,
     PRESET_FIELD_MAP,
     PROVIDER_ORDER,
     PROVIDER_PRESETS,
+)
+from app.services.registry_runtime import (
+    RegistryError,
+    RegistryRuntime,
 )
 from app.services.runtime_config import OPT_IN_KEYS, RUNTIME_KEYS, RuntimeConfig
 from app.services.usage_service import UsageService
@@ -44,6 +47,9 @@ prompt_loader = PromptLoader(settings)
 # в pages.py через mtime-кеш).
 ai_service = AIService(settings)
 usage_service = UsageService(settings)
+# Runtime-реестры агента (типы графиков с рецептами, лейблы действий) —
+# единый экземпляр для админки: чтение и запись в storage/registries.json.
+agent_registry = RegistryRuntime(settings)
 
 security = HTTPBasic(auto_error=False)
 
@@ -229,6 +235,68 @@ def _provider_section_context() -> dict[str, Any]:
     }
 
 
+def _agent_registry_context(
+    status_message: str | None = None,
+    status_kind: str | None = None,
+) -> dict[str, Any]:
+    """Контекст редактируемой секции «Реестры агента» (partial admin_registries).
+    Рецепты раскладываются в плоские поля формы (kind/style/agg/top_n/...)."""
+    chart_rows: list[dict[str, Any]] = []
+    for key in agent_registry.chart_type_keys():
+        entry = agent_registry.chart_entry(key)
+        recipe = entry["recipe"]
+        chart_rows.append(
+            {
+                "key": key,
+                "label": entry.get("label") or key,
+                "hint": entry.get("hint") or "",
+                "quick_prompt": entry.get("quick_prompt") or "",
+                "kind": recipe.get("kind", "categorical"),
+                "style": recipe.get("style") or "",
+                "agg": recipe.get("agg") or "",
+                "x_role": recipe.get("x_role") or "none",
+                "y_role": recipe.get("y_role") or "none",
+                "top_n": "" if recipe.get("top_n") is None else recipe.get("top_n"),
+                "bins": "" if recipe.get("bins") is None else recipe.get("bins"),
+                "limit": "" if recipe.get("limit") is None else recipe.get("limit"),
+            }
+        )
+    action_rows = [
+        {"key": key, "label": entry["label"], "hint": entry["hint"]}
+        for key, entry in agent_registry.actions().items()
+    ]
+    return {
+        "chart_rows": chart_rows,
+        "action_rows": action_rows,
+        "recipe_kinds": RECIPE_KINDS,
+        "categorical_styles": CATEGORICAL_STYLES,
+        "aggregations": AGGREGATIONS,
+        "axis_roles": AXIS_ROLES,
+        "registries_path": str(agent_registry.path),
+        "registries_status_message": status_message,
+        "registries_status_kind": status_kind,
+    }
+
+
+def _registries_response(request: Request, context: dict[str, Any]) -> HTMLResponse:
+    """Вернуть секцию реестров целиком (outerHTML-замена #agent-registries)."""
+    return templates.TemplateResponse("partials/admin_registries.html", context)
+
+
+def _coerce_recipe_from_form(fields: dict[str, str]) -> dict[str, Any]:
+    """Собрать сырой рецепт из полей формы (строки, пусто = умолчание)."""
+    return {
+        "kind": fields.get("kind", ""),
+        "style": fields.get("style", ""),
+        "agg": fields.get("agg", ""),
+        "x_role": fields.get("x_role", ""),
+        "y_role": fields.get("y_role", ""),
+        "top_n": fields.get("top_n", ""),
+        "bins": fields.get("bins", ""),
+        "limit": fields.get("limit", ""),
+    }
+
+
 def _display_value(value: Any) -> str:
     if value is None:
         return "— (по умолчанию / нейтрально)"
@@ -253,16 +321,11 @@ async def admin_panel(request: Request, _: None = Depends(_require_admin)):
         "usage": usage_service.as_dict(),
         "usage_path": str(usage_service.path),
         "provider_preset_map": PROVIDER_PRESETS,
-        "action_types": ACTION_TYPES,
-        "action_labels": ACTION_TYPE_LABELS_RU,
-        "action_hints": ACTION_TYPE_HINTS_RU,
-        "chart_types": CHART_TYPES,
-        "chart_labels": CHART_TYPE_LABELS_RU,
-        "chart_hints": CHART_TYPE_HINTS,
         "admin_enabled": True,
         "status_message": None,
         "status_kind": None,
         **_provider_section_context(),
+        **_agent_registry_context(),
     }
     if request.headers.get("HX-Request") == "true":
         return templates.TemplateResponse("partials/admin_content.html", context)
@@ -534,5 +597,132 @@ async def admin_reset(
             "updated_key": key,
             "updated_display": _display_value(default_value),
             "reset_key": key,
+        },
+    )
+
+@router.post("/registries", response_class=HTMLResponse)
+async def admin_save_registries(request: Request, _: None = Depends(_require_admin)):
+    """Сохранить реестры агента (storage/registries.json): типы графиков
+    (лейблы, подсказки, quick-промпты, рецепты) + лейблы/подсказки действий.
+
+    Форма — плоские поля `ct__<key>__<field>` / `act__<key>__<field>`.
+    Сначала «сухая» валидация всех рецептов (coerce в RegistryRuntime.set_
+    вызовется один раз, но ошибки собираются в список без записи); при любой
+    ошибке файл не пишется, секция перерисовывается со статусом.
+    Типы, помеченные чекбоксом удаления, выбрасываются. Новая строка
+    (`ct__new__key` + поля) добавляется, если ключ задан.
+
+    Ограничение (фиксировано в доке): в runtime добавляются типы графиков
+    поверх трёх табличных kind'ов (histogram/categorical/timeline); новый
+    *тип исполнителя* требует кода. Типы действий фиксированы кодом.
+    """
+    form = await request.form()
+
+    groups: dict[str, dict[str, str]] = {}
+    for name in form.keys():
+        if not name.startswith("ct__") or "__" not in name[4:]:
+            continue
+        key, field = name[4:].split("__", 1)
+        groups.setdefault(key, {})[field] = str(form.get(name, ""))
+
+    chart_types: dict[str, dict[str, Any]] = {}
+    new_key_requested = False
+    for key, fields in groups.items():
+        if fields.get("remove"):
+            continue
+        if key == "new":
+            chart_type_key = fields.get("key", "").strip().lower()
+            if not chart_type_key:
+                continue
+            new_key_requested = True
+            if chart_type_key in chart_types:
+                chart_types.pop(chart_type_key, None)
+        else:
+            chart_type_key = key
+        chart_types[chart_type_key] = {
+            "label": fields.get("label", ""),
+            "hint": fields.get("hint", ""),
+            "quick_prompt": fields.get("quick_prompt", ""),
+            "recipe": _coerce_recipe_from_form(fields),
+        }
+
+    actions_payload = {
+        action: {
+            "label": str(form.get(f"act__{action}__label", "") or ""),
+            "hint": str(form.get(f"act__{action}__hint", "") or ""),
+        }
+        for action in ACTION_TYPES
+    }
+
+    try:
+        agent_registry.set_chart_registry(chart_types)
+    except RegistryError as exc:
+        logger.info("Admin registries save rejected: %s", exc)
+        context = {
+            **_agent_registry_context(),
+            "request": request,
+            "registries_status_message": f"Не сохранено — {exc}",
+            "registries_status_kind": "error",
+        }
+        if new_key_requested:
+            context["registries_status_message"] += (
+                " (значения формы сброшены к сохранённому состоянию)"
+            )
+        return _registries_response(
+            request,
+            context,
+        )
+
+    try:
+        agent_registry.set_actions(actions_payload)
+    except Exception as exc:  # noqa: BLE001 - защита записи секции действий
+        logger.warning("Admin actions registry save failed: %s", exc)
+        return _registries_response(
+            request,
+            {
+                **_agent_registry_context(),
+                "request": request,
+                "registries_status_message": f"Типы графиков сохранены, но ошибка записи действий: {exc}",
+                "registries_status_kind": "error",
+            },
+        )
+
+    return _registries_response(
+        request,
+        {
+            **_agent_registry_context(),
+            "request": request,
+            "registries_status_message": (
+                f"Реестры сохранены ({len(chart_types)} тип(ов) графиков). "
+                "Применение — на следующем запросе без рестарта: enum контракта модели, "
+                "валидация, чипы чата и рендер."
+            ),
+            "registries_status_kind": "ok",
+        },
+    )
+
+
+@router.post("/registries/reset", response_class=HTMLResponse)
+async def admin_reset_registries(request: Request, _: None = Depends(_require_admin)):
+    """Полный reseed реестра из кодовых дефолтов (registries.py)."""
+    try:
+        agent_registry.reset()
+    except Exception as exc:  # noqa: BLE001
+        return _registries_response(
+            request,
+            {
+                **_agent_registry_context(),
+                "request": request,
+                "registries_status_message": f"Ошибка сброса реестра: {exc}",
+                "registries_status_kind": "error",
+            },
+        )
+    return _registries_response(
+        request,
+        {
+            **_agent_registry_context(),
+            "request": request,
+            "registries_status_message": "Реестр сброшен к дефолтам (seed из registries.py).",
+            "registries_status_kind": "ok",
         },
     )

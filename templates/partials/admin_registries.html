@@ -1,41 +1,164 @@
-<section class="admin-runtime admin-registries">
+{% set kind_help = "histogram — распределение числовой колонки; categorical — категории × метрика с агрегацией (стиль bar/pie); timeline — динамика по времени. В runtime добавляются типы поверх трёх табличных kind'ов; новый тип исполнителя требует кода." %}
+<section class="admin-runtime admin-registries" id="agent-registries">
     <header class="admin-runtime__head">
         <h2 class="admin-tooltip">
             Реестры агента
-            <span class="admin-tooltip__text">{% raw %}Реестры агента — разрешённые действия и типы графиков, на которых держится функциональность ассистента: enum structured output модели, список available_actions, валидация ответа и рендер графиков строятся из этих реестров. Сейчас реестры кодовые (app/services/registries.py) — добавление нового типа графика требует записи в CHART_TYPES и реализации рендера в ChartService. Вынос реестров в редактируемые runtime-параметры админки — в roadmap (PROJECT_STATE, Вариант 4: декларативный движок графиков).{% endraw %}</span>
+            <span class="admin-tooltip__text">{% raw %}Реестры агента — разрешённые действия и типы графиков: enum structured output модели, список available_actions, валидация ответа, чипы чата и рендер графиков строятся из реестра. Редактируется здесь и сохраняется кнопкой «Сохранить реестры»; единый источник истины — storage/registries.json. Действия фиксированы кодом (у каждого исполнитель в ChatService) — редактируются только лейблы/подсказки. Типы графиков — данные: добавление нового типа не требует кода (рецепт одного из трёх kind'ов).{% endraw %}</span>
         </h2>
-        <span class="admin-card__key">код · registries.py</span>
+        <span class="admin-card__key">{{ registries_path }}</span>
     </header>
 
-    <div class="admin-runtime__body">
+    {% if registries_status_message %}
+    <p class="admin-registries__status admin-registries__status--{{ registries_status_kind or 'info' }}">
+        {{ registries_status_message }}
+    </p>
+    {% endif %}
+
+    <div class="admin-runtime__body admin-registries--editable">
         <section class="admin-card admin-card--registry">
             <header class="admin-card__head">
                 <h3>Действия</h3>
-                <span class="admin-card__key">{{ action_types|length }}</span>
+                <span class="admin-card__key">код · {{ action_rows|length }}</span>
             </header>
-            <ul class="admin-registries__list">
-                {% for key in action_types %}
-                <li>
-                    <span class="admin-reg__label">{{ action_labels[key] }}</span>
-                    <code class="admin-reg__key" title="{{ key }}">{{ key }}</code>
+            <ul class="admin-registries__edit">
+                {% for row in action_rows %}
+                <li class="admin-reg__row">
+                    <code class="admin-reg__key" title="{{ row.key }}">{{ row.key }}</code>
+                    <input class="admin-input admin-input--reg" type="text" name="act__{{ row.key }}__label"
+                           value="{{ row.label }}" maxlength="60" aria-label="Лейбл {{ row.key }}">
+                    <input class="admin-input admin-input--reg" type="text" name="act__{{ row.key }}__hint"
+                           value="{{ row.hint }}" maxlength="200" aria-label="Подсказка {{ row.key }}">
                 </li>
                 {% endfor %}
             </ul>
+            <p class="admin-reg__note">Типы действий фиксированы кодом (исполнители — ChatService) — редактируются только лейблы и подсказки.</p>
         </section>
 
         <section class="admin-card admin-card--registry">
             <header class="admin-card__head">
                 <h3>Типы графиков</h3>
-                <span class="admin-card__key">{{ chart_types|length }}</span>
+                <span class="admin-card__key">runtime · {{ chart_rows|length }}</span>
             </header>
-            <ul class="admin-registries__list">
-                {% for key in chart_types %}
-                <li>
-                    <span class="admin-reg__label">{{ chart_labels[key] }}</span>
-                    <code class="admin-reg__key" title="{{ key }}">{{ key }}</code>
+            <ul class="admin-registries__edit">
+                {% for row in chart_rows %}
+                <li class="admin-reg__row admin-reg__row--chart">
+                    <div class="admin-reg__line">
+                        <code class="admin-reg__key" title="{{ row.key }}">{{ row.key }}</code>
+                        <input class="admin-input admin-input--reg admin-input--reg-label" type="text"
+                               name="ct__{{ row.key }}__label" value="{{ row.label }}" maxlength="60"
+                               aria-label="Лейбл {{ row.key }}">
+                        <input class="admin-input admin-input--reg admin-input--reg-wide" type="text"
+                               name="ct__{{ row.key }}__hint" value="{{ row.hint }}" maxlength="200"
+                               placeholder="подсказка модели" aria-label="Подсказка {{ row.key }}">
+                        <input class="admin-input admin-input--reg admin-input--reg-wide" type="text"
+                               name="ct__{{ row.key }}__quick_prompt" value="{{ row.quick_prompt }}" maxlength="240"
+                               placeholder="промпт чипа чата" aria-label="Промпт чипа {{ row.key }}">
+                        <label class="admin-reg__remove"><input type="checkbox" name="ct__{{ row.key }}__remove">удалить</label>
+                    </div>
+                    <div class="admin-reg__line admin-reg__line--recipe" title="{{ kind_help }}">
+                        <select class="admin-input admin-input--reg admin-input--select" name="ct__{{ row.key }}__kind" aria-label="kind {{ row.key }}">
+                            {% for kind in recipe_kinds %}
+                            <option value="{{ kind }}" {% if kind == row.kind %}selected{% endif %}>{{ kind }}</option>
+                            {% endfor %}
+                        </select>
+                        <select class="admin-input admin-input--reg admin-input--select" name="ct__{{ row.key }}__style" aria-label="style {{ row.key }}">
+                            <option value="">— style</option>
+                            {% for style in categorical_styles %}
+                            <option value="{{ style }}" {% if style == row.style %}selected{% endif %}>{{ style }}</option>
+                            {% endfor %}
+                        </select>
+                        <select class="admin-input admin-input--reg admin-input--select" name="ct__{{ row.key }}__agg" aria-label="agg {{ row.key }}">
+                            <option value="">— agg</option>
+                            {% for agg in aggregations %}
+                            <option value="{{ agg }}" {% if agg == row.agg %}selected{% endif %}>{{ agg }}</option>
+                            {% endfor %}
+                        </select>
+                        <select class="admin-input admin-input--reg admin-input--select" name="ct__{{ row.key }}__x_role" aria-label="x_role {{ row.key }}">
+                            <option value="">— x</option>
+                            {% for role in axis_roles %}
+                            <option value="{{ role }}" {% if role == row.x_role %}selected{% endif %}>{{ role }}</option>
+                            {% endfor %}
+                        </select>
+                        <select class="admin-input admin-input--reg admin-input--select" name="ct__{{ row.key }}__y_role" aria-label="y_role {{ row.key }}">
+                            <option value="">— y</option>
+                            {% for role in axis_roles %}
+                            <option value="{{ role }}" {% if role == row.y_role %}selected{% endif %}>{{ role }}</option>
+                            {% endfor %}
+                        </select>
+                        <input class="admin-input admin-input--reg admin-input--num" type="number" min="1" max="500"
+                               name="ct__{{ row.key }}__top_n" value="{{ row.top_n }}" placeholder="top_n" aria-label="top_n {{ row.key }}">
+                        <input class="admin-input admin-input--reg admin-input--num" type="number" min="2" max="200"
+                               name="ct__{{ row.key }}__bins" value="{{ row.bins }}" placeholder="bins" aria-label="bins {{ row.key }}">
+                        <input class="admin-input admin-input--reg admin-input--num" type="number" min="2" max="2000"
+                               name="ct__{{ row.key }}__limit" value="{{ row.limit }}" placeholder="limit" aria-label="limit {{ row.key }}">
+                    </div>
                 </li>
                 {% endfor %}
             </ul>
+
+            <details class="admin-reg__new">
+                <summary>+ добавить тип графика</summary>
+                <div class="admin-reg__line">
+                    <input class="admin-input admin-input--reg" type="text" name="ct__new__key"
+                           placeholder="новый_ключ (латиница)" maxlength="40" aria-label="Ключ нового типа">
+                    <input class="admin-input admin-input--reg" type="text" name="ct__new__label"
+                           placeholder="лейбл" maxlength="60" aria-label="Лейбл нового типа">
+                    <input class="admin-input admin-input--reg admin-input--reg-wide" type="text" name="ct__new__hint"
+                           placeholder="подсказка модели" maxlength="200" aria-label="Подсказка нового типа">
+                </div>
+                <div class="admin-reg__line admin-reg__line--recipe">
+                    <select class="admin-input admin-input--reg admin-input--select" name="ct__new__kind" aria-label="kind нового типа">
+                        {% for kind in recipe_kinds %}
+                        <option value="{{ kind }}">{{ kind }}</option>
+                        {% endfor %}
+                    </select>
+                    <select class="admin-input admin-input--reg admin-input--select" name="ct__new__style" aria-label="style нового типа">
+                        <option value="">— style</option>
+                        {% for style in categorical_styles %}
+                        <option value="{{ style }}">{{ style }}</option>
+                        {% endfor %}
+                    </select>
+                    <select class="admin-input admin-input--reg admin-input--select" name="ct__new__agg" aria-label="agg нового типа">
+                        <option value="">— agg</option>
+                        {% for agg in aggregations %}
+                        <option value="{{ agg }}">{{ agg }}</option>
+                        {% endfor %}
+                    </select>
+                    <select class="admin-input admin-input--reg admin-input--select" name="ct__new__x_role" aria-label="x_role нового типа">
+                        <option value="">— x</option>
+                        {% for role in axis_roles %}
+                        <option value="{{ role }}">{{ role }}</option>
+                        {% endfor %}
+                    </select>
+                    <select class="admin-input admin-input--reg admin-input--select" name="ct__new__y_role" aria-label="y_role нового типа">
+                        <option value="">— y</option>
+                        {% for role in axis_roles %}
+                        <option value="{{ role }}">{{ role }}</option>
+                        {% endfor %}
+                    </select>
+                    <input class="admin-input admin-input--reg admin-input--num" type="number" min="1" max="500"
+                           name="ct__new__top_n" placeholder="top_n" aria-label="top_n нового типа">
+                </div>
+            </details>
         </section>
     </div>
+
+    <footer class="admin-registries__actions">
+        <button type="button" class="primary-btn admin-reg__save"
+                hx-post="/admin/registries"
+                hx-include="#agent-registries"
+                hx-target="#agent-registries"
+                hx-swap="outerHTML"
+                hx-disabled-elt="this">
+            Сохранить реестры
+        </button>
+        <button type="button" class="admin-reg__reset"
+                hx-post="/admin/registries/reset"
+                hx-target="#agent-registries"
+                hx-swap="outerHTML"
+                hx-confirm="Сбросить реестры к кодовым дефолтам? Текущие runtime-настройки реестра будут потеряны.">
+            Сбросить
+        </button>
+ <p class="admin-reg__note">Применение — на следующем запросе без рестарта: enum контракта модели, валидация, чипы чата, рендер графиков.</p>
+    </footer>
 </section>

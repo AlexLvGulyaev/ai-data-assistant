@@ -2,17 +2,22 @@ from __future__ import annotations
 
 from typing import Any
 
-"""Единый источник истины для разрешённых действий и типов графиков.
+"""Дефолты реестров агента и пресеты провайдеров.
 
-Реестры используются везде, где раньше хардкодились множества:
-  - валидация в `ChartService.generate_chart`;
-  - валидация ответа модели в `AIService._parse_plan`;
-  - список `available_actions` в запросе к модели;
-  - enum в JSON Schema structured output (генерируется из этих реестров);
-  - fallback-распознавание в `ChatService._detect_chart_type`.
+Историческая роль «единого источника истины для разрешённых действий и типов
+графиков» расширена: реестры сеются из этого модуля в runtime-файл
+`storage/registries.json` (см. app/services/registry_runtime.py) и дальше
+живут в runtime — правятся оператором через `/admin` без рестарта. Здесь
+остаётся только СИД (начальное состояние) и неизменяемая кодовая часть:
 
-Добавление нового типа графика = запись в `CHART_TYPES` + реализация рендера в
-`ChartService`. Контракт AI и все точки валидации подтянутся автоматически.
+  - действия (`ACTION_TYPES`) — фиксированы кодом: у каждого типа есть
+    Python-исполнитель в `ChatService`; реестр держит лишь лейблы/подсказки;
+  - типы графиков — данные: каждая запись кода не требует. Рецепт
+    (`recipe`) описывает generic-рендер одним из трёх табличных kind'ов
+    (histogram / categorical / timeline, опционально style для categorical).
+
+Порядок типов в реестре важен: он идёт в подсказки модели enum'ом и в
+UI-чипы чата.
 """
 
 # Разрешённые типы действий, которые модель может вернуть в `actions`.
@@ -25,9 +30,9 @@ ACTION_TYPES: tuple[str, ...] = (
 )
 ACTION_TYPES_SET: frozenset[str] = frozenset(ACTION_TYPES)
 
-# Русские лейблы и краткие описания действий для read-only отображения в админке
-# (функциональное ядро агента — что он умеет делать). Реестр действий пока
-# кодовый; вынос в редактируемые runtime-параметры — см. roadmap (PROJECT_STATE).
+# Русские лейблы и краткие описания действий. После выноса реестра в runtime
+# (storage/registries.json, секция actions, редактируется в /admin) этот
+# словарь — только СИД при первом старте.
 ACTION_TYPE_LABELS_RU: dict[str, str] = {
     "preview": "Предпросмотр файла",
     "analyze": "Анализ данных",
@@ -42,6 +47,11 @@ ACTION_TYPE_HINTS_RU: dict[str, str] = {
     "generate_report": "DOCX-отчёт по данным файла",
     "save_summary": "сохранить выжимку диалога в storage",
 }
+
+# СИД реестра действий (секция actions в storage/registries.json — лейблы и
+# подсказки редактируются оператором; сами типы фиксированы кодом).
+ACTION_TYPES_LABELS_SEED: dict[str, str] = dict(ACTION_TYPE_LABELS_RU)
+ACTION_TYPES_HINTS_SEED: dict[str, str] = dict(ACTION_TYPE_HINTS_RU)
 
 # Разрешённые типы графиков (порядок важен для отображения в подсказках модели).
 CHART_TYPES: tuple[str, ...] = (
@@ -78,6 +88,47 @@ CHART_TYPE_QUICK_PROMPTS: dict[str, str] = {
     "line": "Построй line chart: динамику основной числовой метрики по оси даты",
     "pie": "Построй pie chart: доли основной числовой метрики по категориальной колонке",
 }
+
+
+# --- Декларативные рецепты графиков (Вариант 4: chart spec как данные) ---
+
+# Generic-исполнители (kind) — код в ChartService; всё остальное — данные:
+#   - `histogram`   : распределение числовой колонки (bins; None = авто).
+#   - `categorical` : dimension × numeric (объединение категорий), agg
+#                     sum/mean/count, top_n; style bar|pie задаёт отрисовку.
+#   - `timeline`    : datetime × numeric-точки, limit.
+#
+# `x_role`/`y_role` — роль колонки при выборе оси по умолчанию
+# (dimension = категориальные + даты, как исторически для pie/bar; numeric;
+# datetime). Поведение существующих четырёх типов сохранено 1:1:
+#   pie → categorical/style=pie/sum/top 10;  bar → categorical/bar/mean/top 12;
+#   line → timeline/limit 50;                histogram → histogram/bins auto.
+CHART_TYPE_RECIPES_SEED: dict[str, dict[str, Any]] = {
+    "histogram": {"kind": "histogram", "x_role": "numeric", "bins": None},
+    "bar": {
+        "kind": "categorical",
+        "style": "bar",
+        "x_role": "dimension",
+        "y_role": "numeric",
+        "agg": "mean",
+        "top_n": 12,
+    },
+    "line": {"kind": "timeline", "x_role": "datetime", "y_role": "numeric", "limit": 50},
+    "pie": {
+        "kind": "categorical",
+        "style": "pie",
+        "x_role": "dimension",
+        "y_role": "numeric",
+        "agg": "sum",
+        "top_n": 10,
+    },
+}
+
+# Допустимые значения полей рецепта (валидатор — registry_runtime.py).
+RECIPE_KINDS: tuple[str, ...] = ("histogram", "categorical", "timeline")
+CATEGORICAL_STYLES: tuple[str, ...] = ("bar", "pie")
+AGGREGATIONS: tuple[str, ...] = ("sum", "mean", "count")
+AXIS_ROLES: tuple[str, ...] = ("dimension", "numeric", "datetime", "none")
 
 
 # --- Провайдеры модели ---

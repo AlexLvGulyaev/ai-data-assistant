@@ -16,12 +16,7 @@ from app.services.analysis_service import AnalysisService
 from app.services.chart_service import ChartService
 from app.services.export_service import ExportService
 from app.services.file_service import FileService, FileServiceError, StoredFile
-from app.services.registries import (
-    CHART_TYPES,
-    CHART_TYPE_HINTS,
-    CHART_TYPE_LABELS_RU,
-    CHART_TYPE_QUICK_PROMPTS,
-)
+from app.services.registry_runtime import RegistryRuntime
 from app.services.report_service import ReportService
 
 
@@ -59,6 +54,8 @@ class ChatService:
         self.ai_service = ai_service
         self.settings = settings or get_settings()
         self.chat_dir = self.settings.storage_dir / "chats"
+        # Runtime-реестры (UI-чипы типов графиков, fallback-распознавание).
+        self.registry = RegistryRuntime(self.settings)
 
     def ensure_storage(self) -> None:
         self.chat_dir.mkdir(parents=True, exist_ok=True)
@@ -198,15 +195,15 @@ class ChatService:
                 active_preview = None
 
         files = [{**item, "is_active": item["file_id"] == active_file_id} for item in reversed(conversation.get("files", []))]
-        # Реестро-управляемый список типов графиков для UI-чипов (quick-grid picker).
-        # Единый источник истины — CHART_TYPES; лейблы и промпты тянутся из реестра.
+        # Runtime-реестро-управляемый список типов графиков для UI-чипов
+        # (quick-grid picker): ключи + лейблы + промпты из storage/registries.json.
         chart_types = [
             {
                 "type": chart_type,
-                "label": CHART_TYPE_LABELS_RU.get(chart_type, chart_type),
-                "prompt": CHART_TYPE_QUICK_PROMPTS.get(chart_type, f"Построй {chart_type} для активного файла"),
+                "label": self.registry.chart_label(chart_type),
+                "prompt": self.registry.chart_quick_prompt(chart_type),
             }
-            for chart_type in CHART_TYPES
+            for chart_type in self.registry.chart_type_keys()
         ]
         return {
             "request": request,
@@ -358,7 +355,7 @@ class ChatService:
                     "Пока нет активного файла. Загрузите CSV, Excel, JSON или изображение. После этого можно попросить анализ, график, отчёт или сохранение в файл.",
                 )
 
-            chart_types = ", ".join(f"`{name}`" for name in CHART_TYPES)
+            chart_types = ", ".join(f"`{name}`" for name in self.registry.chart_type_keys())
             return self._new_message(
                 "assistant",
                 f"Для активного файла могу показать предпросмотр, собрать анализ, построить {chart_types}, сделать DOCX-отчёт и сохранить краткую markdown-сводку. Для выбора колонок напишите, например: `Построй line chart x: date y: revenue`.",
@@ -576,13 +573,23 @@ class ChatService:
         return "help"
 
     def _detect_chart_type(self, normalized: str) -> str:
-        if any(token in normalized for token in ("hist", "гист")):
-            return "histogram"
-        if any(token in normalized for token in ("pie", "кругов", "дол", "сектор")):
-            return "pie"
-        if any(token in normalized for token in ("line", "лине")):
-            return "line"
-        return "bar"
+        """Deterministic fallback, только по типам, присутствующим в реестре.
+        Порядок исторический: histogram → pie → line → bar → первый доступный."""
+        available = self.registry.chart_types_set()
+
+        def _pick(chart_type: str, tokens: tuple[str, ...]) -> str | None:
+            if chart_type in available and any(token in normalized for token in tokens):
+                return chart_type
+            return None
+
+        keys = self.registry.chart_type_keys()
+        return (
+            _pick("histogram", ("hist", "гист"))
+            or _pick("pie", ("pie", "кругов", "дол", "сектор"))
+            or _pick("line", ("line", "лине"))
+            or _pick("bar", ("bar", "столб", "диаграм"))
+            or (keys[0] if keys else "")
+        )
 
     def _extract_chart_columns(self, text: str) -> tuple[str | None, str | None]:
         x_match = re.search(r"(?:x|x_column|ось x)\s*[:=]\s*[\"'«]?([^,\n;»\"]+)", text, flags=re.IGNORECASE)
@@ -592,8 +599,9 @@ class ChatService:
         return x_column, y_column
 
     # Порядок типов для отчёта: разнообразие важнее «что лежит на диске».
-    # `line` сюда не входит — требует подходящей оси (даты) и часто не строится
-    # на произвольных данных; histogram/bar/pie покрывают три разных сценария.
+    # Исторический порядок сид-реестра (histogram/bar/pie; line — требует
+    # подходящей оси дат и часто не строится на произвольных данных), но
+    # фактические типы берутся из runtime-реестра (первые три).
     REPORT_CHART_ORDER: tuple[str, ...] = ("histogram", "bar", "pie")
 
     def _chart_type_from_name(self, file_name: str) -> str | None:
@@ -622,10 +630,14 @@ class ChatService:
                 newest_by_type[chart_type] = record
 
         result: list[dict[str, Any]] = []
-        for chart_type in self.REPORT_CHART_ORDER:
+        registry_order = self.registry.chart_type_keys()
+        # Приоритет — исторический порядок отчёта, остальные типы реестра — следом.
+        ordered = [t for t in self.REPORT_CHART_ORDER if t in registry_order]
+        ordered += [t for t in registry_order if t not in self.REPORT_CHART_ORDER]
+        for chart_type in ordered[:3]:
             if chart_type in newest_by_type:
                 record = dict(newest_by_type[chart_type])
-                record.setdefault("description", CHART_TYPE_HINTS.get(chart_type, ""))
+                record.setdefault("description", self.registry.chart_hint(chart_type))
                 result.append(record)
                 continue
             try:

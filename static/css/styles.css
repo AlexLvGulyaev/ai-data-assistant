@@ -1154,11 +1154,11 @@ button,
     gap: 0.4rem;
 }
 
-/* Внутри макропанели «Реестры» две под-панели (Действия / Типы графиков)
-   стоят бок о бок — это экономит ~130px высоты правой колонки. */
+/* Внутри макропанели «Реестры» под-панели (Действия / Типы графиков) стоят
+   столбцом: с редактированием строкам нужна вся ширина колонки. */
 .admin-registries .admin-runtime__body {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 0.4rem;
     align-items: start;
 }
@@ -1468,3 +1468,131 @@ button,
         padding-right: 4px;
     }
 }
+
+/* Редактируемые реестры агента (storage/registries.json): строки-редакторы
+   в под-панелях «Действия» и «Типы графиков». Компактные инпуты в сетке,
+   select'ы рецептов одним рядом, кнопки сохранения/сброса в футере секции. */
+.admin-registries__edit {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+}
+
+.admin-reg__row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.admin-reg__line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 0;
+}
+
+.admin-reg__line--recipe {
+    padding-left: 0.4rem;
+}
+
+.admin-input--reg {
+    padding: 0.18rem 0.4rem;
+    font-size: 0.76rem;
+    min-width: 0;
+}
+
+.admin-input--reg-label {
+    width: 9rem;
+}
+
+.admin-input--reg-wide {
+    flex: 1 1 10rem;
+}
+
+.admin-input--select {
+    flex: 0 1 auto;
+}
+
+.admin-input--num {
+    width: 4.6rem;
+}
+
+.admin-reg__remove {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--muted);
+    font-size: 0.72rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.admin-reg__note {
+    margin: 0.25rem 0 0;
+    font-size: 0.72rem;
+    line-height: 1.35;
+    color: var(--muted);
+}
+
+.admin-registries__status {
+    margin: 0;
+    padding: 0.35rem 0.55rem;
+    border-radius: 8px;
+    font-size: 0.76rem;
+    line-height: 1.35;
+}
+
+.admin-registries__status--ok {
+    background: rgba(108, 139, 107, 0.16);
+    color: #3f6b3e;
+}
+
+.admin-registries__status--error {
+    background: rgba(208, 107, 78, 0.16);
+    color: #8d3f28;
+}
+
+.admin-reg__new {
+    margin-top: 0.4rem;
+    font-size: 0.78rem;
+}
+
+.admin-reg__new summary {
+    cursor: pointer;
+    color: var(--accent, #1c5c78);
+    font-weight: 500;
+}
+
+.admin-reg__new .admin-reg__line {
+    margin-top: 0.35rem;
+}
+
+.admin-registries__actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.admin-reg__save {
+    padding: 0.35rem 0.8rem;
+    font-size: 0.78rem;
+}
+
+.admin-reg__reset {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.78rem;
+    border: 1px solid rgba(31, 40, 51, 0.25);
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
