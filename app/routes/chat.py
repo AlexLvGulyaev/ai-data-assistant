@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
 
 from app.routes.pages import chat_service, render_page
 from app.services.chat_service import ChatNotFoundError
